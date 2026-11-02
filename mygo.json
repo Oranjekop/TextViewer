@@ -1,0 +1,12 @@
+{
+  "copyright": "Copyright 2026 Oranjekop",
+  "icon": "assets/icon.png",
+  "identifier": "local.oranjekop.textviewer",
+  "name": "TextViewer",
+  "out": "dist/TextViewer",
+  "slug": "textviewer",
+  "version": "0.0.1",
+  "windows": {
+    "installerInclude": "shell/installer.nsh"
+  }
+}

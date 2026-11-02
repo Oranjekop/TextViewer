@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  IgnorableNamespaces="uap uap10 rescap desktop4 desktop5 com">
+  <Identity Name="Oranjekop.TextViewer.ContextMenu"
+    Publisher="CN=TextViewer Local Development"
+    Version="0.0.1.0" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>TextViewer</DisplayName>
+    <PublisherDisplayName>TextViewer</PublisherDisplayName>
+    <Logo>Assets\Logo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+  <Resources><Resource Language="zh-CN" /></Resources>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26300.0" />
+  </Dependencies>
+  <Applications>
+    <Application Id="TextViewer" Executable="TextViewer.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="TextViewer" Description="TextViewer"
+        BackgroundColor="transparent" Square150x150Logo="Assets\Logo.png"
+        Square44x44Logo="Assets\Logo44.png" AppListEntry="none" />
+      <Extensions>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer DisplayName="TextViewer">
+              <com:Class Id="9DFEEF63-8B31-4BD2-85A0-A53687CE7C96"
+                Path="TextViewerShell.dll" ThreadingModel="STA" />
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <desktop5:ItemType Type="*">
+              <desktop5:Verb Id="TextViewerOpen" Clsid="9DFEEF63-8B31-4BD2-85A0-A53687CE7C96" />
+            </desktop5:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="textviewer.txt">
+            <uap:DisplayName>TextViewer</uap:DisplayName>
+            <uap:Logo>Assets\Logo44.png</uap:Logo>
+            <uap:SupportedFileTypes><uap:FileType>.txt</uap:FileType><uap:FileType>.log</uap:FileType></uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities><rescap:Capability Name="runFullTrust" /></Capabilities>
+</Package>

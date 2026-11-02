@@ -1,0 +1,5 @@
+/dist/
+/.cache/
+/HANDOFF.md
+/resources/
+*.syso

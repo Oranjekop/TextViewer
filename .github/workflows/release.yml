@@ -1,0 +1,99 @@
+name: Build And Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: textviewer-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  windows:
+    name: Windows Tests And Installer
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Derive version from the release tag
+        id: meta
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            go run ./cmd/release prepare -tag $env:GITHUB_REF_NAME
+            if ($LASTEXITCODE -ne 0) { throw 'Invalid release tag.' }
+          }
+          $version = (Get-Content -LiteralPath mygo.json -Raw | ConvertFrom-Json).version
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Test
+        run: go test ./... -count=1 -timeout 180s
+      - name: Vet
+        run: go vet ./...
+      - name: Verify dependencies
+        run: go mod verify
+      - name: Build x64 and ARM64 payloads and universal installer
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: ./scripts/build-release.ps1 -Tag $env:GITHUB_REF_NAME -BootstrapTools -SkipTests
+      - name: Verify actual native installation and safe uninstallation
+        if: github.ref_type == 'tag'
+        env:
+          TEXTVIEWER_TEST_INSTALLER: '1'
+        run: go test ./cmd/release -run '^TestUniversalInstallerInstallsNativePayload$' -count=1 -v -timeout 180s
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: github.ref_type == 'tag'
+        with:
+          name: windows-release
+          path: dist/release/${{ github.ref_name }}/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish Verified Release
+    needs: windows
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.windows.outputs.version }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-release
+          path: release
+      - name: Verify and publish complete assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "release/TextViewer-Setup-$VERSION-windows.exe"
+          test -s "release/TextViewer-$VERSION-windows-amd64.zip"
+          test -s "release/TextViewer-$VERSION-windows-arm64.zip"
+          test -s release/SHA256SUMS.txt
+          test "$(find release -maxdepth 1 -type f | wc -l)" -eq 4
+          (cd release && sha256sum --check SHA256SUMS.txt)
+          NOTES=(--generate-notes)
+          if [[ -f "docs/releases/$VERSION.md" ]]; then
+            NOTES=(--notes-file "docs/releases/$VERSION.md")
+          fi
+          if gh release view "$TAG" --json isDraft > /tmp/release.json 2>/dev/null; then
+            test "$(jq -r .isDraft /tmp/release.json)" = true
+          else
+            gh release create "$TAG" --draft --verify-tag --title "$TAG" --prerelease=false "${NOTES[@]}"
+          fi
+          gh release upload "$TAG" release/* --clobber
+          gh release edit "$TAG" --draft=false --prerelease=false --latest=true

@@ -1,0 +1,4 @@
+LIBRARY TextViewerShell
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE
