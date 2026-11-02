@@ -1,0 +1,74 @@
+package desktop
+
+import (
+	"sync"
+
+	"github.com/egoist/mygo/ui"
+)
+
+const fontAutomatic = "自动"
+
+var installedFonts = sync.OnceValue(func() []string {
+	families := ui.FontFamilies()
+	names := make([]string, 1, len(families)+1)
+	names[0] = fontAutomatic
+	for _, family := range families {
+		names = append(names, family.Name)
+	}
+	return names
+})
+
+func (a *App) editorFont() string {
+	if a.settings.FontFamily != "" {
+		return a.settings.FontFamily
+	}
+	if a.doc.Buffer.Language() != nil {
+		return "monospace"
+	}
+	return "Microsoft YaHei UI"
+}
+
+func (a *App) chooseFont() {
+	a.fontOptions = installedFonts()
+	a.fontDraft = a.settings.FontFamily
+	if a.fontDraft == "" {
+		a.fontDraft = fontAutomatic
+	}
+	a.fontDialog = true
+}
+
+func (a *App) applyFont() {
+	a.settings.FontFamily = a.fontDraft
+	if a.fontDraft == fontAutomatic {
+		a.settings.FontFamily = ""
+	}
+	a.persistPreferences()
+	a.fontDialog = false
+	a.pendingFocus = true
+}
+
+func (a *App) fontChooser(c *ui.Context) {
+	ui.Modal(c.Key("font-dialog"), &a.fontDialog, func() {
+		ui.Text(c, "字体").FontSize(18).Bold()
+		ui.Combobox(c, &a.fontDraft, a.fontOptions).Width(360).Label("字体名称")
+		family := a.fontDraft
+		if family == fontAutomatic {
+			if a.doc.Buffer.Language() == nil {
+				family = "Microsoft YaHei UI"
+			} else {
+				family = "monospace"
+			}
+		}
+		ui.Text(c, "中文字体预览\nAa Bb 0123456789\n{ \"text\": \"TextViewer\" }").
+			Font(family).FontSize(18).Width(360).Padding(12, 0)
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			if ui.Button(c, "取消").Clicked() {
+				a.fontDialog = false
+				a.pendingFocus = true
+			}
+			if ui.PrimaryButton(c, "应用").Clicked() {
+				a.applyFont()
+			}
+		})
+	}).Width(408)
+}

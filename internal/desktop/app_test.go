@@ -42,7 +42,7 @@ func TestCompactLayoutNoOverlap(t *testing.T) {
 		a.findOpen, a.replacing = true, true
 		tester := ui.NewTester(a.view, width, 600)
 		for _, row := range [][]string{
-			{"文件", "打开", "保存", "查找", "替换", "自动换行", "字号", "代码格式", "设置"},
+			{"文件", "打开", "保存", "查找", "替换", "自动换行", "字体", "字号", "代码格式", "设置"},
 			{"查找内容", "区分大小写", "上一处", "下一处", "关闭查找"},
 			{"替换内容", "全部替换"},
 		} {

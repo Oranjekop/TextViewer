@@ -35,14 +35,27 @@ type Document struct {
 	Path     string
 	Encoding Encoding
 	Buffer   *editor.Buffer
-	Saved    editor.Snapshot
+	Saved    SaveState
 	stamp    os.FileInfo
+}
+
+// SaveState captures text and output settings together before a background save.
+type SaveState struct {
+	text       editor.Snapshot
+	encoding   Encoding
+	lineEnding string
 }
 
 func New() *Document {
 	b := editor.NewBuffer("")
 	b.SetLineEnding("\r\n")
-	return &Document{Encoding: UTF8, Buffer: b, Saved: b.Snapshot()}
+	d := &Document{Encoding: UTF8, Buffer: b}
+	d.Saved = d.CaptureSave()
+	return d
+}
+
+func (d *Document) CaptureSave() SaveState {
+	return SaveState{text: d.Buffer.Snapshot(), encoding: d.Encoding, lineEnding: d.Buffer.LineEnding()}
 }
 
 type contextReader struct {
@@ -121,7 +134,9 @@ func Load(ctx context.Context, path string) (*Document, error) {
 			return nil, err
 		}
 	}
-	if !utf8.ValidString(content) || strings.IndexByte(content, 0) >= 0 {
+	// Plain UTF-8 already passed the detection check above. Only decoded or
+	// BOM-tagged input still needs validation here.
+	if (enc != UTF8 && !utf8.ValidString(content)) || strings.IndexByte(content, 0) >= 0 {
 		return nil, errors.New("这个文件不是可编辑的文本文件")
 	}
 	if err = ctx.Err(); err != nil {
@@ -135,7 +150,12 @@ func Load(ctx context.Context, path string) (*Document, error) {
 		return nil, ErrChanged
 	}
 	b := editor.NewBuffer(content)
-	return &Document{Path: path, Encoding: enc, Buffer: b, Saved: b.Snapshot(), stamp: stamp}, nil
+	if err = ctx.Err(); err != nil {
+		return nil, err
+	}
+	d := &Document{Path: path, Encoding: enc, Buffer: b, stamp: stamp}
+	d.Saved = d.CaptureSave()
+	return d, nil
 }
 
 func codecFor(enc Encoding) encoding.Encoding {
@@ -181,22 +201,29 @@ func verifyRoundTrip(ctx context.Context, f *os.File, skip int, codec encoding.E
 }
 
 func (d *Document) Dirty() bool {
-	return d.Buffer.Version() != d.Saved.Version()
+	return d.metadataChanged() || d.Buffer.Version() != d.Saved.text.Version()
+}
+
+func (d *Document) metadataChanged() bool {
+	return d.Encoding != d.Saved.encoding || d.Buffer.LineEnding() != d.Saved.lineEnding
 }
 
 // HasChanges runs only when leaving a document. It compares chunks so undoing
 // back to the saved text does not require two whole-document strings.
 func (d *Document) HasChanges() bool {
+	if d.metadataChanged() {
+		return true
+	}
 	current := d.Buffer.Snapshot()
-	if current.Version() == d.Saved.Version() {
+	if current.Version() == d.Saved.text.Version() {
 		return false
 	}
-	if current.Len() != d.Saved.Len() {
+	if current.Len() != d.Saved.text.Len() {
 		return true
 	}
 	at, changed := 0, false
 	current.Chunks(0, current.Len(), func(chunk string) bool {
-		if chunk != d.Saved.Slice(at, at+len(chunk)) {
+		if chunk != d.Saved.text.Slice(at, at+len(chunk)) {
 			changed = true
 			return false
 		}
@@ -216,7 +243,12 @@ func (d *Document) DiskChanged() bool {
 
 // SaveSnapshot writes the captured version to a sibling temporary file first.
 // A failed conversion or write never truncates the user's existing document.
-func (d *Document) SaveSnapshot(ctx context.Context, path string, snapshot editor.Snapshot) (os.FileInfo, error) {
+func (d *Document) SaveSnapshot(ctx context.Context, path string, snapshot SaveState) (os.FileInfo, error) {
+	switch snapshot.encoding {
+	case UTF8, UTF8BOM, UTF16LE, UTF16BE, GB18030:
+	default:
+		return nil, fmt.Errorf("不支持的编码：%s", snapshot.encoding)
+	}
 	path, err := ResolvePath(path)
 	if err != nil {
 		return nil, err
@@ -245,7 +277,7 @@ func (d *Document) SaveSnapshot(ctx context.Context, path string, snapshot edito
 		}
 	}
 	var out io.Writer = tmp
-	switch d.Encoding {
+	switch snapshot.encoding {
 	case UTF8BOM:
 		_, err = tmp.Write([]byte{0xef, 0xbb, 0xbf})
 	case UTF16LE:
@@ -257,11 +289,11 @@ func (d *Document) SaveSnapshot(ctx context.Context, path string, snapshot edito
 		return nil, err
 	}
 	var encoded *transform.Writer
-	if codec := codecFor(d.Encoding); codec != nil {
+	if codec := codecFor(snapshot.encoding); codec != nil {
 		encoded = transform.NewWriter(tmp, codec.NewEncoder())
 		out = encoded
 	}
-	_, err = snapshot.WriteTo(contextWriter{ctx, out})
+	_, err = snapshot.text.WriteTo(contextWriter{ctx, out})
 	if err == nil && encoded != nil {
 		err = encoded.Close()
 	}
@@ -310,12 +342,12 @@ func (w contextWriter) Write(p []byte) (int, error) {
 	return w.w.Write(p)
 }
 
-func (d *Document) AcceptSave(path string, snapshot editor.Snapshot, stamp os.FileInfo) {
+func (d *Document) AcceptSave(path string, snapshot SaveState, stamp os.FileInfo) {
 	if resolved, err := ResolvePath(path); err == nil {
 		path = resolved
 	}
 	d.Path, d.Saved, d.stamp = path, snapshot, stamp
-	if d.Buffer.Version() == snapshot.Version() {
+	if d.Buffer.Version() == snapshot.text.Version() {
 		d.Buffer.MarkSaved()
 	}
 }

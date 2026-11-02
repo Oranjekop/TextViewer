@@ -25,6 +25,9 @@ type App struct {
 	state           *editor.State
 	editor          ui.Handle
 	queryInput      ui.Handle
+	fontDialog      bool
+	fontDraft       string
+	fontOptions     []string
 	fontSize        string
 	language        string
 	wrap            bool
@@ -149,12 +152,8 @@ func (a *App) view(c *ui.Context) {
 	a.shortcuts(c)
 	t := c.Theme()
 	fontSize, _ := strconv.Atoi(a.fontSize)
-	family := "Microsoft YaHei UI"
 	code := a.doc.Buffer.Language() != nil
-	if code {
-		family = "monospace"
-	}
-	a.state.Font = ui.Font{Family: family, Size: float32(fontSize)}
+	a.state.Font = ui.Font{Family: a.editorFont(), Size: float32(fontSize)}
 	a.state.NoIndentGuides = !code
 	a.state.SoftWrap = a.wrap
 	a.state.ReadOnly = a.busy != ""
@@ -190,14 +189,17 @@ func (a *App) view(c *ui.Context) {
 			snapshot := a.doc.Buffer.Snapshot()
 			column := a.column.at(snapshot, a.state.Cursor())
 			ui.Text(c, fmt.Sprintf("行 %s，列 %s", formatNumber(pos.Line+1), formatNumber(column))).FontSize(12).TextColor(t.TextMuted)
-			ui.Text(c, string(a.doc.Encoding)).FontSize(12).TextColor(t.TextMuted)
+			ui.Button(c.Key("encoding"), string(a.doc.Encoding)).Height(24).MinWidth(0).Padding(0, 6).
+				FontSize(12).Label("编码").Tooltip("以所选编码保存").Disabled(a.busy != "").Menu(a.encodingMenu)
 			ending := "LF"
 			if a.doc.Buffer.LineEnding() == "\r\n" {
 				ending = "CRLF"
 			}
-			ui.Text(c, ending).FontSize(12).TextColor(t.TextMuted)
+			ui.Button(c.Key("line-ending"), ending).Height(24).MinWidth(0).Padding(0, 6).
+				FontSize(12).Label("换行格式").Tooltip(a.lineEndingLabel()).Disabled(a.busy != "").Menu(a.lineEndingMenu)
 		})
 	})
+	a.fontChooser(c)
 	a.updateTitle()
 }
 
@@ -222,6 +224,8 @@ func (a *App) editMenu(m *ui.Menu) {
 	if m.Item("替换").Shortcut(ui.Ctrl, ui.KeyH).Chosen() {
 		a.showFind(true)
 	}
+	m.Separator()
+	a.jsonFormatMenuItem(m)
 }
 
 func (a *App) fileMenu(m *ui.Menu) {
@@ -248,6 +252,9 @@ func (a *App) fileMenu(m *ui.Menu) {
 }
 
 func (a *App) settingsMenu(m *ui.Menu) {
+	if m.Item("字体…").Chosen() {
+		a.chooseFont()
+	}
 	m.Submenu("外观", func(m *ui.Menu) {
 		for _, name := range []string{"跟随系统", "浅色", "深色"} {
 			if m.Item(name).Radio(a.settings.Theme == name).Chosen() {
@@ -256,6 +263,8 @@ func (a *App) settingsMenu(m *ui.Menu) {
 			}
 		}
 	})
+	m.Submenu("编码", a.encodingMenu)
+	m.Submenu("换行格式", a.lineEndingMenu)
 	m.Separator()
 	updateLabel := "检查更新…"
 	if a.availableUpdate != nil {
@@ -300,6 +309,9 @@ func (a *App) settingsMenu(m *ui.Menu) {
 }
 
 func (a *App) shortcuts(c *ui.Context) {
+	if a.fontDialog {
+		return
+	}
 	c.OnShortcut(ui.Ctrl, ui.KeyO, a.chooseOpen)
 	c.OnShortcut(ui.Ctrl, ui.KeyN, func() {
 		if a.busy == "" {
@@ -310,6 +322,7 @@ func (a *App) shortcuts(c *ui.Context) {
 	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyS, func() { a.save(true, nil) })
 	c.OnShortcut(ui.Ctrl, ui.KeyF, func() { a.showFind(false) })
 	c.OnShortcut(ui.Ctrl, ui.KeyH, func() { a.showFind(true) })
+	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyJ, a.formatJSON)
 	c.OnShortcut(0, ui.KeyF3, func() { a.find(false) })
 	c.OnShortcut(ui.Shift, ui.KeyF3, func() { a.find(true) })
 	c.OnShortcut(ui.Ctrl, ui.KeyEqual, func() { a.zoom(2) })
@@ -432,7 +445,7 @@ func (a *App) save(saveAs bool, then func()) {
 		}
 		path = chosen
 	}
-	snapshot := a.doc.Buffer.Snapshot()
+	snapshot := a.doc.CaptureSave()
 	ctx, id := a.startJob("正在保存…")
 	doc := a.doc
 	go func() {

@@ -28,7 +28,7 @@ func TestEncodingRoundTrip(t *testing.T) {
 			d.Encoding = enc
 			d.Buffer.Set("中文文本 123\n第二行\n")
 			path := filepath.Join(t.TempDir(), "roundtrip.txt")
-			snapshot := d.Buffer.Snapshot()
+			snapshot := d.CaptureSave()
 			stamp, err := d.SaveSnapshot(context.Background(), path, snapshot)
 			if err != nil {
 				t.Fatal(err)
@@ -48,7 +48,7 @@ func TestEncodingRoundTrip(t *testing.T) {
 				t.Fatal("CRLF was not retained")
 			}
 			copyPath := filepath.Join(t.TempDir(), "copy.txt")
-			if _, err = reloaded.SaveSnapshot(context.Background(), copyPath, reloaded.Buffer.Snapshot()); err != nil {
+			if _, err = reloaded.SaveSnapshot(context.Background(), copyPath, reloaded.CaptureSave()); err != nil {
 				t.Fatal(err)
 			}
 			want, _ := os.ReadFile(path)
@@ -71,7 +71,7 @@ func TestLFSaveAndEmptyFile(t *testing.T) {
 			t.Fatalf("got %q", d.Buffer.String())
 		}
 		copyPath := filepath.Join(t.TempDir(), "save.txt")
-		if _, err = d.SaveSnapshot(context.Background(), copyPath, d.Buffer.Snapshot()); err != nil {
+		if _, err = d.SaveSnapshot(context.Background(), copyPath, d.CaptureSave()); err != nil {
 			t.Fatal(err)
 		}
 		got, _ := os.ReadFile(copyPath)
@@ -100,7 +100,7 @@ func TestLiteralReplacementCharacterIsNotCorruption(t *testing.T) {
 		d.Encoding = enc
 		d.Buffer.Set("中文 \ufffd")
 		path := filepath.Join(t.TempDir(), "replacement.txt")
-		if _, err := d.SaveSnapshot(context.Background(), path, d.Buffer.Snapshot()); err != nil {
+		if _, err := d.SaveSnapshot(context.Background(), path, d.CaptureSave()); err != nil {
 			t.Fatal(err)
 		}
 		reloaded, err := Load(context.Background(), path)
@@ -128,7 +128,7 @@ func TestSaveCancellationPreservesFile(t *testing.T) {
 	d.Buffer.Set("replacement")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = d.SaveSnapshot(ctx, path, d.Buffer.Snapshot())
+	_, err = d.SaveSnapshot(ctx, path, d.CaptureSave())
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("got %v", err)
 	}
@@ -149,7 +149,7 @@ func TestSavingExistingFileReplacesContents(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.Buffer.Set("replacement\n中文\n")
-	snapshot := d.Buffer.Snapshot()
+	snapshot := d.CaptureSave()
 	stamp, err := d.SaveSnapshot(context.Background(), path, snapshot)
 	if err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func TestReadOnlySaveDoesNotLeaveTemporaryFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.Buffer.Set("changed")
-	if _, err = d.SaveSnapshot(context.Background(), path, d.Buffer.Snapshot()); err == nil {
+	if _, err = d.SaveSnapshot(context.Background(), path, d.CaptureSave()); err == nil {
 		t.Fatal("read-only file should require Save As")
 	}
 	got, _ := os.ReadFile(path)
@@ -202,7 +202,7 @@ func TestExternalModificationIsNotOverwritten(t *testing.T) {
 	if err = os.WriteFile(path, []byte("a different program changed this file"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, err = d.SaveSnapshot(context.Background(), path, d.Buffer.Snapshot())
+	_, err = d.SaveSnapshot(context.Background(), path, d.CaptureSave())
 	if !errors.Is(err, ErrChanged) {
 		t.Fatalf("got %v", err)
 	}
@@ -215,7 +215,7 @@ func TestExternalModificationIsNotOverwritten(t *testing.T) {
 func TestCapturedSaveDoesNotMarkNewEditsSaved(t *testing.T) {
 	d := New()
 	d.Buffer.Set("captured\n")
-	snapshot := d.Buffer.Snapshot()
+	snapshot := d.CaptureSave()
 	d.Buffer.Set("newer edits\n")
 	path := filepath.Join(t.TempDir(), "save.txt")
 	stamp, err := d.SaveSnapshot(context.Background(), path, snapshot)
@@ -244,5 +244,99 @@ func TestUndoToSavedContent(t *testing.T) {
 	d.Buffer.Undo()
 	if d.HasChanges() {
 		t.Fatal("undo to saved content still requests save")
+	}
+}
+
+func TestEncodingAndLineEndingConversion(t *testing.T) {
+	for _, enc := range []Encoding{UTF8, UTF8BOM, UTF16LE, UTF16BE, GB18030} {
+		for _, ending := range []string{"\r\n", "\n"} {
+			t.Run(string(enc)+ending, func(t *testing.T) {
+				path := fixture(t, []byte("中文 😀\r\nsecond\r\n"))
+				d, err := Load(context.Background(), path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				original := d.Buffer.Snapshot()
+				d.Encoding = enc
+				d.Buffer.SetLineEnding(ending)
+				changed := enc != UTF8 || ending != "\r\n"
+				if d.Dirty() != changed || d.HasChanges() != changed {
+					t.Fatalf("metadata change not tracked: dirty=%v changes=%v", d.Dirty(), d.HasChanges())
+				}
+				if original.Version() != d.Buffer.Version() || d.Buffer.CanUndo() {
+					t.Fatal("metadata conversion rewrote the text or undo history")
+				}
+				snapshot := d.CaptureSave()
+				stamp, err := d.SaveSnapshot(context.Background(), path, snapshot)
+				if err != nil {
+					t.Fatal(err)
+				}
+				d.AcceptSave(path, snapshot, stamp)
+				reloaded, err := Load(context.Background(), path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if d.Dirty() || d.HasChanges() || reloaded.Encoding != enc ||
+					reloaded.Buffer.LineEnding() != ending || reloaded.Buffer.String() != original.String() {
+					t.Fatal("converted document did not reload with matching settings/text")
+				}
+			})
+		}
+	}
+}
+
+func TestSavedMetadataUsesCapturedValues(t *testing.T) {
+	d := New()
+	d.Buffer.Set("中文\nsecond\n")
+	d.Encoding = UTF16LE
+	d.Buffer.SetLineEnding("\n")
+	snapshot := d.CaptureSave()
+	d.Encoding = UTF8BOM
+	d.Buffer.SetLineEnding("\r\n")
+	path := filepath.Join(t.TempDir(), "captured.txt")
+	stamp, err := d.SaveSnapshot(context.Background(), path, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.AcceptSave(path, snapshot, stamp)
+	reloaded, err := Load(context.Background(), path)
+	if err != nil || reloaded.Encoding != UTF16LE || reloaded.Buffer.LineEnding() != "\n" {
+		t.Fatalf("save used live metadata: %+v %v", reloaded, err)
+	}
+	if !d.Dirty() || !d.HasChanges() {
+		t.Fatal("newer output settings were incorrectly marked saved")
+	}
+	d.Encoding = UTF16LE
+	d.Buffer.SetLineEnding("\n")
+	if d.Dirty() || d.HasChanges() {
+		t.Fatal("captured metadata did not become the saved baseline")
+	}
+}
+
+func TestUnsupportedEncodingDoesNotOverwriteFile(t *testing.T) {
+	path := fixture(t, []byte("original"))
+	d, err := Load(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Encoding = "unknown"
+	d.Buffer.Set("replacement")
+	if _, err = d.SaveSnapshot(context.Background(), path, d.CaptureSave()); err == nil {
+		t.Fatal("unsupported encoding was silently written as UTF-8")
+	}
+	got, err := os.ReadFile(path)
+	if err != nil || string(got) != "original" {
+		t.Fatalf("original file changed: %q %v", got, err)
+	}
+}
+
+func TestInvalidUTF8AfterLargePrefixStillUsesLegacyDetection(t *testing.T) {
+	content := append(bytes.Repeat([]byte("ascii\n"), 16384), 0xd6, 0xd0, 0xce, 0xc4)
+	d, err := Load(context.Background(), fixture(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Encoding != GB18030 || !strings.HasSuffix(d.Buffer.String(), "中文") {
+		t.Fatal("UTF-8 validation optimization missed a legacy suffix")
 	}
 }

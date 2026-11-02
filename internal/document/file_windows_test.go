@@ -26,7 +26,7 @@ func TestReplacingExistingFilePreservesCreationTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.Buffer.Set("replacement")
-	if _, err = d.SaveSnapshot(context.Background(), path, d.Buffer.Snapshot()); err != nil {
+	if _, err = d.SaveSnapshot(context.Background(), path, d.CaptureSave()); err != nil {
 		t.Fatal(err)
 	}
 	f, err = os.Open(path)

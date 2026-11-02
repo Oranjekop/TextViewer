@@ -7,6 +7,7 @@ import (
 )
 
 type preferences struct {
+	FontFamily       string `json:"fontFamily,omitempty"`
 	FontSize         int    `json:"fontSize"`
 	Wrap             bool   `json:"wrap"`
 	Theme            string `json:"theme"`

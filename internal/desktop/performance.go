@@ -21,6 +21,8 @@ import (
 
 type performanceReport struct {
 	Language           string  `json:"language"`
+	FontFamily         string  `json:"fontFamily"`
+	SoftWrap           bool    `json:"softWrap"`
 	FileBytes          int64   `json:"fileBytes"`
 	Lines              int     `json:"lines"`
 	OpenMS             float64 `json:"openMS"`
@@ -48,6 +50,8 @@ func PerformanceCheck(args []string) error {
 	flags := flag.NewFlagSet("performance-check", flag.ContinueOnError)
 	size := flags.Int("size-mb", 100, "generated fixture size in MiB")
 	format := flags.String("format", "txt", "fixture format: txt or json")
+	fontFamily := flags.String("font", "", "editor font family; empty uses automatic selection")
+	softWrap := flags.Bool("wrap", true, "enable automatic word wrap")
 	output := flags.String("output", "dist/evidence", "report and preview directory")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -122,11 +126,13 @@ func PerformanceCheck(args []string) error {
 	}
 	a := New()
 	a.doc = doc
-	a.settings.Theme, a.fontSize, a.wrap = "浅色", "16", true
+	a.settings.Theme, a.fontSize, a.wrap = "浅色", "16", *softWrap
+	a.settings.FontFamily = *fontFamily
 	start = time.Now()
 	a.resetEditor()
 	report.LanguageSetupMS = milliseconds(start)
 	report.Language = a.languageLabel()
+	report.FontFamily, report.SoftWrap = a.editorFont(), a.wrap
 	start = time.Now()
 	tester := ui.NewTester(a.view, 1100, 720)
 	report.FirstFrameMS = milliseconds(start)
@@ -191,7 +197,7 @@ func PerformanceCheck(args []string) error {
 		return fmt.Errorf("unexpected search result in generated fixture")
 	}
 	start = time.Now()
-	_, err = doc.SaveSnapshot(context.Background(), filepath.Join(temp, "saved.txt"), doc.Buffer.Snapshot())
+	_, err = doc.SaveSnapshot(context.Background(), filepath.Join(temp, "saved.txt"), doc.CaptureSave())
 	report.SaveMS = milliseconds(start)
 	if err != nil {
 		return err

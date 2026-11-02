@@ -12,7 +12,7 @@ var toolbarSVG embed.FS
 var toolbarIcons = loadToolbarIcons()
 
 func loadToolbarIcons() map[string]*ui.SVG {
-	names := []string{"file", "open", "save", "find", "replace", "wrap", "code", "settings", "chevron-down"}
+	names := []string{"file", "open", "save", "find", "replace", "wrap", "font", "code", "settings", "chevron-down"}
 	icons := make(map[string]*ui.SVG, len(names))
 	for _, name := range names {
 		data, err := toolbarSVG.ReadFile("icons/" + name + ".svg")
@@ -63,6 +63,9 @@ func (a *App) toolbar(c *ui.Context) {
 		}
 		if wrap.Changed() {
 			a.persistPreferences()
+		}
+		if iconButton(c, "font", "字体", "字体："+a.editorFont(), false).Clicked() {
+			a.chooseFont()
 		}
 		if ui.Select(c, &a.fontSize, []string{"10", "12", "14", "16", "18", "20", "24", "28", "32", "40", "48"}).
 			Width(68).MinWidth(0).Label("字号").Tooltip("字号 (Ctrl+加号 / 减号)").Changed() {

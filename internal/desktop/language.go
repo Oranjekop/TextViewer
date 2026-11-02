@@ -78,6 +78,8 @@ func (a *App) languageTooltip() string {
 }
 
 func (a *App) languageMenu(m *ui.Menu) {
+	a.jsonFormatMenuItem(m)
+	m.Separator()
 	for _, name := range []string{languageAuto, languagePlain} {
 		if m.Item(name).Radio(a.language == name || name == languageAuto && a.language == "").Chosen() {
 			a.setLanguage(name)

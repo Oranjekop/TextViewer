@@ -4,12 +4,13 @@
 
 ## 功能
 
-- 打开、拖入、编辑和保存文本；支持撤销、重做、自动换行和字号调整。
+- 打开、拖入、编辑和保存文本；支持撤销、重做、自动换行、字体和字号调整，重启后恢复上次选择的字体。
 - 异步查找、上一处/下一处、替换和全部替换；支持区分大小写，替换可撤销。
 - 按文件名识别 JSON、XML、Go、Python、JavaScript、TypeScript、HTML、CSS、SQL 等代码格式；右上角可手动选择语言或纯文本。
-- 代码使用等宽字体、语法着色、缩进参考线和括号匹配；只改变显示，不自动重排文件内容。
+- 代码支持语法着色、缩进参考线和括号匹配；自动字体模式使用等宽字体，也可选择自己的字体。切换显示语言不重排文件内容。
 - TXT、LOG 和未知扩展名默认纯文本，不为猜测格式扫描全文。打开新文件会恢复自动识别；手动选择仅用于当前文件。
-- UTF-8、UTF-8 BOM、UTF-16 LE/BE BOM 和 GB18030；保存保留编码及 CRLF/LF 换行方式。
+- UTF-8、UTF-8 BOM、UTF-16 LE/BE BOM 和 GB18030；支持切换保存编码，以及 Windows (CRLF) / Unix、Linux (LF) 换行格式。
+- JSON 格式化，使用两空格缩进，保留字段顺序、重复键、数字原文和转义；可一次撤销，错误 JSON 保持原样。
 - 浅色、深色和跟随系统；上排 SVG 按钮包含悬浮提示和辅助功能名称。
 - Windows 11 新版资源管理器右键命令“在 TextViewer 中打开”，不是“显示更多选项”里的旧式注册表命令。
 - 81 种常用文本、代码、数据、配置和脚本文件的“打开方式”关联，配套六类文件图标。
@@ -19,7 +20,7 @@
 
 ## 使用
 
-从 [v0.0.3 发布页](https://github.com/Oranjekop/TextViewer/releases/tag/v0.0.3) 下载 `TextViewer-Setup-0.0.3-windows.exe`。同一个安装程序自动选择 x64 / ARM64，按当前用户安装，无需为主程序申请管理员权限，提供开始菜单入口、可选桌面快捷方式及系统“已安装的应用”中的卸载入口。
+从 [v0.0.4 发布页](https://github.com/Oranjekop/TextViewer/releases/tag/v0.0.4) 下载 `TextViewer-Setup-0.0.4-windows.exe`。同一个安装程序自动选择 x64 / ARM64，按当前用户安装，无需为主程序申请管理员权限，提供开始菜单入口、可选桌面快捷方式及系统“已安装的应用”中的卸载入口。
 
 需要便携使用时，下载对应架构的 ZIP，并完整解压。安装目录或解压目录中的 `TextViewer.exe` 支持拖入文件，也可把文件路径作为启动参数。启动新实例时，文件交给现有窗口打开。
 
@@ -35,7 +36,14 @@
 | 自动换行 | Alt+Z |
 | 增大 / 缩小字号 | Ctrl+加号 / Ctrl+减号 |
 | 恢复 16 号字 | Ctrl+0 |
+| 格式化 JSON | Ctrl+Shift+J |
 | 撤销 / 重做 | Ctrl+Z / Ctrl+Y |
+
+点击上排字体按钮可搜索系统字体并预览，应用后用于当前文件及之后打开的文件，重启后仍保留。选择“自动”恢复普通文本和代码各自的默认字体。字号继续在旁边的下拉框中调整。
+
+点击状态栏编码或换行格式可修改保存格式，也可从“设置”进入相同选项。编码切换保留当前已解码的文本，以所选编码在下次保存时写入；不是以另一种编码重新解读原文件。只修改编码或换行格式也会标记为未保存。Windows 使用 CRLF，Unix 和 Linux 都使用 LF。
+
+从“代码格式”菜单或编辑区右键选择“格式化 JSON”，也可按 Ctrl+Shift+J。该操作处理整个文档，只接受严格 JSON，不处理 JSONC 注释或 JSON5 语法。格式化在后台执行，可在应用结果前取消，保留当前编码和换行格式。输入上限 128 MiB，预估缩进输出上限 256 MiB；超过限制时保留原文。
 
 ### 文件关联与图标
 
@@ -91,20 +99,26 @@ Windows 11 26H2 自定义右键菜单时，添加操作会同时启用 TextViewe
 
 | 项目 | TXT，100 MiB / 819,201 行 | JSON，约 100 MiB / 1,028,100 行 |
 | --- | ---: | ---: |
-| 打开 | 586 ms | 506 ms |
+| 打开 | 558 ms | 478 ms |
 | 载入后新增保留堆，不含后续 UI 索引 | 108.8 MiB | 105.0 MiB |
-| 稳态重绘 | 0.50 ms | 0.39 ms |
-| 输入一个字符 | 6.0 ms | 7.5 ms |
-| 全文无匹配查找 | 1.35 s | 1.26 s |
-| 保存 | 671 ms | 889 ms |
+| 稳态重绘 | 0.40 ms | 0.40 ms |
+| 输入一个字符 | 5.5 ms | 8.5 ms |
+| 全文无匹配查找 | 1.34 s | 1.27 s |
+| 保存 | 625 ms | 1,054 ms |
 
-TXT 自动换行索引在初始测试批次后渐进完成，另用约 1.41 s。JSON 跳到文件末尾时，头一批离屏帧约 186 ms，后续渐进词法状态追赶约 2.42 s；不在切换语言时一次性预解析全文。报告中的 `firstFrameMS` 和 `navigateEndMS` 包含测试器最多 20 帧的批次，不是单帧延迟或 GPU 指标。上述耗时受硬件、文件内容和当前系统负载影响。
+TXT 自动换行索引在初始测试批次后渐进完成，另用约 1.39 s。相同 TXT 样本开启换行的首批离屏帧约 120 ms，关闭后约 22 ms，且不再计算换行索引；这部分是显示布局耗时，独立于文件读取。JSON 跳到文件末尾时，头一批离屏帧约 189 ms，后续渐进词法状态追赶约 2.42 s；不在切换语言时一次性预解析全文。报告中的 `firstFrameMS` 和 `navigateEndMS` 包含测试器最多 20 帧的批次，不是单帧延迟或 GPU 指标。上述耗时受硬件、文件内容和当前系统负载影响。
+
+打开普通 UTF-8 文件时仅校验一次全文。字体列表只在首次打开字体选择器时枚举并缓存，不增加打开文件或每帧重绘的枚举成本。独立的约 100 MiB JSON 样本中，仅格式化计算约 1.06 s、累计分配约 235 MiB，不含原文与应用结果时的编辑缓冲区；格式化需要额外内存，但不在打开文件时自动执行。
 
 复测会生成临时文件，不读取或覆盖现有用户文档：
 
 ```powershell
 go run . --performance-check -size-mb 100 -output dist/evidence
 go run . --performance-check -size-mb 100 -format json -output dist/evidence
+
+# 对比字体或自动换行对显示耗时的影响
+go run . --performance-check -size-mb 100 -font Consolas -output dist/evidence-font
+go run . --performance-check -size-mb 100 -wrap=false -output dist/evidence-no-wrap
 ```
 
 ## 开发与构建
@@ -144,7 +158,7 @@ MyGo 构建会临时生成 `.syso` 资源文件，同一目录内不要并行执
 ### 发行安装包
 
 ```powershell
-.\scripts\build-release.ps1 -Tag v0.0.3 -BootstrapTools
+.\scripts\build-release.ps1 -Tag v0.0.4 -BootstrapTools
 
 # 在独立临时目录实测原生架构选择、版本和安装/卸载；不注册真实右键或更改证书信任
 $env:TEXTVIEWER_TEST_INSTALLER = '1'
@@ -152,13 +166,13 @@ go test ./cmd/release -run '^TestUniversalInstallerInstallsNativePayload$' -coun
 Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 ```
 
-输出到 `dist\release\v0.0.3`：
+输出到 `dist\release\v0.0.4`：
 
 | 文件 | 用途 |
 | --- | --- |
-| `TextViewer-Setup-0.0.3-windows.exe` | x64 / ARM64 合并安装包 |
-| `TextViewer-0.0.3-windows-amd64.zip` | x64 完整便携包 |
-| `TextViewer-0.0.3-windows-arm64.zip` | ARM64 完整便携包 |
+| `TextViewer-Setup-0.0.4-windows.exe` | x64 / ARM64 合并安装包 |
+| `TextViewer-0.0.4-windows-amd64.zip` | x64 完整便携包 |
+| `TextViewer-0.0.4-windows-arm64.zip` | ARM64 完整便携包 |
 | `SHA256SUMS.txt` | 三个公开产物的 SHA-256 |
 
 `.github/workflows/release.yml` 对 main / PR 执行测试、vet、依赖验证及独立注册表中的右键显示配置测试；推送 `vMAJOR.MINOR.PATCH` 标签时，从标签写入应用版本、EXE 版本和 MSIX 身份版本，再顺序编译双架构、运行原生右键测试与隔离安装验收，最后校验完整产物并发布正式 Release。不会覆盖已经正式发布的版本。
@@ -169,8 +183,8 @@ Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 
 ```powershell
 $env:TEXTVIEWER_UPDATE_LIVE_CHECK = '1'
-$env:TEXTVIEWER_PREVIOUS_RELEASE = '0.0.2'
-$env:TEXTVIEWER_EXPECTED_RELEASE = '0.0.3'
+$env:TEXTVIEWER_PREVIOUS_RELEASE = '0.0.3'
+$env:TEXTVIEWER_EXPECTED_RELEASE = '0.0.4'
 go test ./internal/update -run '^TestGitHubReleaseUpdateIntegration$' -count=1 -v -timeout 240s
 Remove-Item Env:\TEXTVIEWER_UPDATE_LIVE_CHECK, Env:\TEXTVIEWER_PREVIOUS_RELEASE, Env:\TEXTVIEWER_EXPECTED_RELEASE
 ```
