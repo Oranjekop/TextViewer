@@ -140,7 +140,7 @@ Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 
 `.github/workflows/release.yml` 对 main / PR 执行测试、vet 及依赖验证；推送 `vMAJOR.MINOR.PATCH` 标签时，从标签写入应用版本、EXE 版本和 MSIX 身份版本，再顺序编译双架构、运行原生右键测试与隔离安装验收，最后校验完整产物并发布正式 Release。不会覆盖已经正式发布的版本。
 
-后续发布先添加 `docs/releases/<版本>.md`，提交代码后创建并推送对应标签。每段版本号必须是无前导零的整数且不超过 65535，以匹配 Windows 安装包版本限制。不得把本机签名私钥、缓存或 `HANDOFF.md` 提交到仓库。
+后续发布先添加 `docs/releases/<版本>.md`，提交代码后创建并推送对应标签。每段版本号必须是无前导零的整数且不超过 65535，以匹配 Windows 安装包版本限制。
 
 发布后可使用真实更新客户端检查公开版本并下载校验安装包，不执行安装：
 
@@ -156,4 +156,3 @@ Remove-Item Env:\TEXTVIEWER_UPDATE_LIVE_CHECK, Env:\TEXTVIEWER_EXPECTED_RELEASE
 - 工具栏 SVG 位于 `internal/desktop/icons`，采用统一 24×24 网格与线宽；仅在启动时解析一次，随主题着色。
 - `assets/app-icon-master.png` 是内置生图工具生成的原始母版，最终提示词及来源记录在 `assets/app-icon-prompt.md`。
 - `go run ./cmd/assets assets` 从母版生成 EXE 与 MSIX 所需 PNG，保留透明度，不会用占位图覆盖生图设计。
-- `HANDOFF.md` 是本地中文开发交接，不纳入 Git 提交。
