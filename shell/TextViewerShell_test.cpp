@@ -12,22 +12,31 @@ static void require(bool condition, const char *message) {
 }
 
 int wmain(int argc, wchar_t **argv) {
-    require(argc == 4, "expected DLL, file and directory paths");
+    require(argc == 4, "expected DLL or --registered, file and directory paths");
     require(SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED)), "initialize COM");
-    HMODULE library = LoadLibraryW(argv[1]);
-    require(library != nullptr, "load extension without extra runtime DLLs");
+    const bool registered = wcscmp(argv[1], L"--registered") == 0;
+    HMODULE library = nullptr;
     using GetClass = HRESULT(WINAPI *)(REFCLSID, REFIID, void **);
     using CanUnload = HRESULT(WINAPI *)();
-    auto getClass = reinterpret_cast<GetClass>(GetProcAddress(library, "DllGetClassObject"));
-    auto canUnload = reinterpret_cast<CanUnload>(GetProcAddress(library, "DllCanUnloadNow"));
-    require(getClass && canUnload, "COM exports");
-    require(canUnload() == S_OK, "initial unload state");
+    CanUnload canUnload = nullptr;
     const CLSID id = {0x9dfeef63, 0x8b31, 0x4bd2, {0x85, 0xa0, 0xa5, 0x36, 0x87, 0xce, 0x7c, 0x96}};
     IClassFactory *factory = nullptr;
-    require(SUCCEEDED(getClass(id, IID_IClassFactory, reinterpret_cast<void **>(&factory))), "class factory");
     IExplorerCommand *command = nullptr;
-    require(SUCCEEDED(factory->CreateInstance(nullptr, IID_IExplorerCommand, reinterpret_cast<void **>(&command))), "IExplorerCommand");
-    require(canUnload() == S_FALSE, "live COM objects prevent unloading");
+    if (registered) {
+        const HRESULT hr = CoCreateInstance(id, nullptr, CLSCTX_LOCAL_SERVER, IID_PPV_ARGS(&command));
+        if (FAILED(hr)) std::cerr << "CoCreateInstance HRESULT: 0x" << std::hex << hr << "\n";
+        require(SUCCEEDED(hr), "activate the registered packaged COM command");
+    } else {
+        library = LoadLibraryW(argv[1]);
+        require(library != nullptr, "load extension without extra runtime DLLs");
+        auto getClass = reinterpret_cast<GetClass>(GetProcAddress(library, "DllGetClassObject"));
+        canUnload = reinterpret_cast<CanUnload>(GetProcAddress(library, "DllCanUnloadNow"));
+        require(getClass && canUnload, "COM exports");
+        require(canUnload() == S_OK, "initial unload state");
+        require(SUCCEEDED(getClass(id, IID_IClassFactory, reinterpret_cast<void **>(&factory))), "class factory");
+        require(SUCCEEDED(factory->CreateInstance(nullptr, IID_IExplorerCommand, reinterpret_cast<void **>(&command))), "IExplorerCommand");
+        require(canUnload() == S_FALSE, "live COM objects prevent unloading");
+    }
     LPWSTR title = nullptr;
     require(SUCCEEDED(command->GetTitle(nullptr, &title)), "command title");
     require(wcscmp(title, L"\u5728 TextViewer \u4e2d\u6253\u5f00") == 0, "localized command title");
@@ -58,9 +67,9 @@ int wmain(int argc, wchar_t **argv) {
     require(wcsstr(icon, L"TextViewer.exe,0") != nullptr, "icon points at editor");
     CoTaskMemFree(icon);
     command->Release();
-    factory->Release();
-    require(canUnload() == S_OK, "final unload state");
-    FreeLibrary(library);
+    if (factory) factory->Release();
+    if (canUnload) require(canUnload() == S_OK, "final unload state");
+    if (library) FreeLibrary(library);
     CoUninitialize();
     std::cout << "Explorer command tests passed\n";
     return 0;

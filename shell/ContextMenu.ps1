@@ -4,6 +4,42 @@ param(
     [string]$AppDirectory = $PSScriptRoot,
     [string]$ExpectedThumbprint
 )
+
+function Enable-TextViewerModernMenu {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidatePattern('^[A-Za-z0-9.-]+_[a-z0-9]{13}$')]
+        [string]$PackageFamilyName,
+        [string]$PreferencesPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\ContextMenu\Preferences'
+    )
+    # With the 26H2 extensions submenu hidden, only individually enabled
+    # packages appear. Opt in this package without changing global choices.
+    if (-not (Test-Path -LiteralPath $PreferencesPath)) { return }
+    $entry = Join-Path $PreferencesPath "extensions\$PackageFamilyName"
+    if (-not (Test-Path -LiteralPath $entry)) {
+        New-Item -Path $entry -Force | Out-Null
+    }
+    New-ItemProperty -LiteralPath $entry -Name 'Enabled' -Value 1 -PropertyType DWord -Force | Out-Null
+}
+
+function Update-TextViewerShell {
+    if (-not ('TextViewer.ShellNotification' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace TextViewer {
+    public static class ShellNotification {
+        [DllImport("shell32.dll")]
+        public static extern void SHChangeNotify(uint eventId, uint flags, IntPtr item1, IntPtr item2);
+    }
+}
+'@
+    }
+    [TextViewer.ShellNotification]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
+}
+
+if ($MyInvocation.InvocationName -eq '.') { return }
+
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $packageName = 'Oranjekop.TextViewer.ContextMenu'
@@ -14,6 +50,7 @@ if ($Action -eq 'Status') {
 }
 if ($Action -eq 'Remove') {
     if ($existing) { $existing | Remove-AppxPackage -ErrorAction Stop }
+    Update-TextViewerShell
     Write-Output 'REMOVED'
     exit 0
 }
@@ -93,6 +130,8 @@ if (Test-Path -LiteralPath $statePath) {
     $previous = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
 }
 if ($existing -and $previous -and $previous.Directory -eq $destination) {
+    Enable-TextViewerModernMenu -PackageFamilyName $existing.PackageFamilyName
+    Update-TextViewerShell
     Write-Output "INSTALLED $destination"
     exit 0
 }
@@ -112,4 +151,6 @@ try {
 $installed = Get-AppxPackage -Name $packageName
 if (-not $installed) { throw 'Windows did not register the context menu package.' }
 [IO.File]::WriteAllText($statePath, (@{ Directory = $destination } | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+Enable-TextViewerModernMenu -PackageFamilyName $installed.PackageFamilyName
+Update-TextViewerShell
 Write-Output "INSTALLED $destination"

@@ -16,7 +16,11 @@ func TestGitHubReleaseUpdateIntegration(t *testing.T) {
 	defer cancel()
 	client := NewClient()
 	client.cacheDir = t.TempDir()
-	release, err := client.Check(ctx, "0.0.0")
+	previous := os.Getenv("TEXTVIEWER_PREVIOUS_RELEASE")
+	if previous == "" {
+		previous = "0.0.0"
+	}
+	release, err := client.Check(ctx, previous)
 	if err != nil || release == nil {
 		t.Fatalf("latest public release: %+v, %v", release, err)
 	}

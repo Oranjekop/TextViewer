@@ -18,7 +18,7 @@
 
 ## 使用
 
-从 [v0.0.1 发布页](https://github.com/Oranjekop/TextViewer/releases/tag/v0.0.1) 下载 `TextViewer-Setup-0.0.1-windows.exe`。同一个安装程序自动选择 x64 / ARM64，按当前用户安装，无需为主程序申请管理员权限，提供开始菜单入口、可选桌面快捷方式及系统“已安装的应用”中的卸载入口。
+从 [v0.0.2 发布页](https://github.com/Oranjekop/TextViewer/releases/tag/v0.0.2) 下载 `TextViewer-Setup-0.0.2-windows.exe`。同一个安装程序自动选择 x64 / ARM64，按当前用户安装，无需为主程序申请管理员权限，提供开始菜单入口、可选桌面快捷方式及系统“已安装的应用”中的卸载入口。
 
 需要便携使用时，下载对应架构的 ZIP，并完整解压。安装目录或解压目录中的 `TextViewer.exe` 支持拖入文件，也可把文件路径作为启动参数。启动新实例时，文件交给现有窗口打开。
 
@@ -51,7 +51,7 @@
 
 安装包只尝试注册已经受信任的右键身份包，不会自动导入证书。CI 未配置持久发行签名证书时，每次构建会生成新的自签名，更新后启用右键可能需要再次确认信任。
 
-当前验证边界：原生 COM 命令测试通过；本机尚未批准证书信任，因此还未完成 Windows 11 26H2 首层菜单安装及目视验收。不要把 DLL 测试或 MSIX 签名成功当成实际安装成功。
+Windows 11 26H2 自定义右键菜单时，添加操作会同时启用 TextViewer 的主菜单项。如果随后在系统“自定义菜单”中隐藏了 TextViewer，可在那里重新启用，或再次执行“添加到 Windows 11 新版右键菜单”。其他应用及系统菜单显示设置保持原样。
 
 ### 在线更新
 
@@ -95,6 +95,7 @@ go run . --performance-check -size-mb 100 -format json -output dist/evidence
 go test ./...
 go vet ./...
 go mod verify
+.\scripts\test-context-menu.ps1
 .\scripts\build.ps1 -BootstrapTools
 .\scripts\test-shell.ps1
 ```
@@ -118,10 +119,12 @@ go test ./internal/desktop -run TestPreview -count=1
 
 MyGo 构建会临时生成 `.syso` 资源文件，同一目录内不要并行执行构建、测试或 vet。开发中运行 GUI 可使用 `go run .`；右键注册必须使用包含完整配套文件的构建目录。
 
+已完成菜单注册后，使用 `.\scripts\test-shell.ps1 -Registered` 可验证系统通过 COM 激活实际安装的命令及其文件筛选行为；此检查不会打开编辑器或改变签名信任。
+
 ### 发行安装包
 
 ```powershell
-.\scripts\build-release.ps1 -Tag v0.0.1 -BootstrapTools
+.\scripts\build-release.ps1 -Tag v0.0.2 -BootstrapTools
 
 # 在独立临时目录实测原生架构选择、版本和安装/卸载；不注册真实右键或更改证书信任
 $env:TEXTVIEWER_TEST_INSTALLER = '1'
@@ -129,16 +132,16 @@ go test ./cmd/release -run '^TestUniversalInstallerInstallsNativePayload$' -coun
 Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 ```
 
-输出到 `dist\release\v0.0.1`：
+输出到 `dist\release\v0.0.2`：
 
 | 文件 | 用途 |
 | --- | --- |
-| `TextViewer-Setup-0.0.1-windows.exe` | x64 / ARM64 合并安装包 |
-| `TextViewer-0.0.1-windows-amd64.zip` | x64 完整便携包 |
-| `TextViewer-0.0.1-windows-arm64.zip` | ARM64 完整便携包 |
+| `TextViewer-Setup-0.0.2-windows.exe` | x64 / ARM64 合并安装包 |
+| `TextViewer-0.0.2-windows-amd64.zip` | x64 完整便携包 |
+| `TextViewer-0.0.2-windows-arm64.zip` | ARM64 完整便携包 |
 | `SHA256SUMS.txt` | 三个公开产物的 SHA-256 |
 
-`.github/workflows/release.yml` 对 main / PR 执行测试、vet 及依赖验证；推送 `vMAJOR.MINOR.PATCH` 标签时，从标签写入应用版本、EXE 版本和 MSIX 身份版本，再顺序编译双架构、运行原生右键测试与隔离安装验收，最后校验完整产物并发布正式 Release。不会覆盖已经正式发布的版本。
+`.github/workflows/release.yml` 对 main / PR 执行测试、vet、依赖验证及独立注册表中的右键显示配置测试；推送 `vMAJOR.MINOR.PATCH` 标签时，从标签写入应用版本、EXE 版本和 MSIX 身份版本，再顺序编译双架构、运行原生右键测试与隔离安装验收，最后校验完整产物并发布正式 Release。不会覆盖已经正式发布的版本。
 
 后续发布先添加 `docs/releases/<版本>.md`，提交代码后创建并推送对应标签。每段版本号必须是无前导零的整数且不超过 65535，以匹配 Windows 安装包版本限制。
 
@@ -146,9 +149,10 @@ Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 
 ```powershell
 $env:TEXTVIEWER_UPDATE_LIVE_CHECK = '1'
-$env:TEXTVIEWER_EXPECTED_RELEASE = '0.0.1'
+$env:TEXTVIEWER_PREVIOUS_RELEASE = '0.0.1'
+$env:TEXTVIEWER_EXPECTED_RELEASE = '0.0.2'
 go test ./internal/update -run '^TestGitHubReleaseUpdateIntegration$' -count=1 -v -timeout 240s
-Remove-Item Env:\TEXTVIEWER_UPDATE_LIVE_CHECK, Env:\TEXTVIEWER_EXPECTED_RELEASE
+Remove-Item Env:\TEXTVIEWER_UPDATE_LIVE_CHECK, Env:\TEXTVIEWER_PREVIOUS_RELEASE, Env:\TEXTVIEWER_EXPECTED_RELEASE
 ```
 
 ### 图标资产

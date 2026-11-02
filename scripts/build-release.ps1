@@ -21,6 +21,7 @@ try {
         Assert-TextViewerExit 'Go vet'
         go mod verify
         Assert-TextViewerExit 'Module verification'
+        & (Join-Path $PSScriptRoot 'test-context-menu.ps1')
     }
     foreach ($architecture in @('amd64', 'arm64')) {
         $arguments = @{

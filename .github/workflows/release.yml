@@ -42,6 +42,9 @@ jobs:
         run: go vet ./...
       - name: Verify dependencies
         run: go mod verify
+      - name: Test context menu preferences
+        shell: powershell
+        run: ./scripts/test-context-menu.ps1
       - name: Build x64 and ARM64 payloads and universal installer
         if: github.ref_type == 'tag'
         shell: pwsh

@@ -1,5 +1,6 @@
 param(
-    [string]$BuildDirectory = 'dist\TextViewer\windows-amd64'
+    [string]$BuildDirectory = 'dist\TextViewer\windows-amd64',
+    [switch]$Registered
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'tools.ps1')
@@ -13,6 +14,9 @@ $testExe = Join-Path $testDirectory 'shell-tests.exe'
 Assert-TextViewerExit 'Shell test compilation'
 $file = Join-Path $testDirectory 'sample & spaces.txt'
 [IO.File]::WriteAllText($file, 'TextViewer shell extension test')
-$dll = [IO.Path]::GetFullPath((Join-Path $root "$BuildDirectory\TextViewerShell.dll"))
+$dll = '--registered'
+if (-not $Registered) {
+    $dll = (Resolve-Path -LiteralPath (Join-Path $root "$BuildDirectory\TextViewerShell.dll")).Path
+}
 & $testExe $dll $file $testDirectory
 Assert-TextViewerExit 'Explorer command tests'
