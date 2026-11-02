@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"image"
 	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Oranjekop/TextViewer/internal/filetypes"
 )
 
 func writeMaster(t *testing.T, dir string, w, h int) {
@@ -92,5 +96,56 @@ func TestProjectMasterIsTransparentPNG(t *testing.T) {
 	}
 	if _, _, _, alpha := img.At(bounds.Dx()/2, bounds.Dy()/2).RGBA(); alpha == 0 {
 		t.Fatal("master has no central artwork")
+	}
+}
+
+func TestFileIconsContainEveryNativeSizeAndPreserveArtwork(t *testing.T) {
+	output := t.TempDir()
+	source := t.TempDir()
+	for _, group := range filetypes.Groups() {
+		name := group.ID + "-master.png"
+		master, err := os.ReadFile(filepath.Join("..", "..", "assets", "file-icons", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(source, name), master, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := generateFileIcons(source, output); err != nil {
+		t.Fatal(err)
+	}
+	for _, group := range filetypes.Groups() {
+		data, err := os.ReadFile(filepath.Join(output, group.IconName()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if binary.LittleEndian.Uint16(data[2:4]) != 1 || int(binary.LittleEndian.Uint16(data[4:6])) != len(iconSizes) {
+			t.Fatalf("%s has an invalid ICO header", group.ID)
+		}
+		committed, err := os.ReadFile(filepath.Join("..", "..", "internal", "fileassoc", "icons", group.IconName()))
+		if err != nil || !bytes.Equal(committed, data) {
+			t.Fatalf("%s: embedded ICO is stale; run go run ./cmd/assets assets", group.ID)
+		}
+		for i, size := range iconSizes {
+			entry := data[6+16*i : 6+16*(i+1)]
+			length, offset := binary.LittleEndian.Uint32(entry[8:12]), binary.LittleEndian.Uint32(entry[12:16])
+			if uint64(offset)+uint64(length) > uint64(len(data)) {
+				t.Fatalf("%s: ICO entry is outside the file", group.ID)
+			}
+			img, err := png.Decode(bytes.NewReader(data[offset : offset+length]))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if img.Bounds() != image.Rect(0, 0, size, size) {
+				t.Fatalf("%s: wrong native size %v", group.ID, img.Bounds())
+			}
+			if _, _, _, alpha := img.At(0, 0).RGBA(); alpha != 0 {
+				t.Fatalf("%s: opaque background at %dpx", group.ID, size)
+			}
+			if _, _, _, alpha := img.At(size/2, size/2).RGBA(); alpha == 0 {
+				t.Fatalf("%s: missing artwork at %dpx", group.ID, size)
+			}
+		}
 	}
 }

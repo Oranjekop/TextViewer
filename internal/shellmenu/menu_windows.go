@@ -25,7 +25,7 @@ func run(action string, extra ...string) (string, error) {
 	dir := filepath.Dir(exe)
 	script := filepath.Join(dir, "ContextMenu.ps1")
 	if _, err = os.Stat(script); err != nil {
-		return "", errors.New("请使用完整构建目录中的 TextViewer.exe，右键扩展需要同目录的安装文件")
+		return "", errors.New("请使用包含完整配套文件的 TextViewer 构建目录")
 	}
 	powershell := filepath.Join(os.Getenv("SystemRoot"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -33,15 +33,28 @@ func run(action string, extra ...string) (string, error) {
 	args := []string{"-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-Action", action, "-AppDirectory", dir}
 	args = append(args, extra...)
 	cmd := exec.CommandContext(ctx, powershell, args...)
+	cmd.Env = powerShellEnvironment()
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if strings.Contains(string(out), "TEXTVIEWER_CERTIFICATE_TRUST_REQUIRED") {
 			return "", ErrTrustRequired
 		}
-		return "", fmt.Errorf("右键菜单设置失败：%s", strings.TrimSpace(string(out)))
+		return "", fmt.Errorf("Windows 集成设置失败：%s", strings.TrimSpace(string(out)))
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func powerShellEnvironment() []string {
+	// Windows PowerShell cannot load PowerShell 7 modules inherited from a terminal.
+	var environment []string
+	for _, variable := range os.Environ() {
+		name, _, _ := strings.Cut(variable, "=")
+		if !strings.EqualFold(name, "PSModulePath") {
+			environment = append(environment, variable)
+		}
+	}
+	return environment
 }
 
 // TrustAndInstall is called only after the user confirms why an administrator
@@ -74,4 +87,20 @@ func Uninstall() error { _, err := run("Remove"); return err }
 func Installed() (bool, error) {
 	out, err := run("Status")
 	return strings.Contains(out, "INSTALLED"), err
+}
+
+// PrepareBundle pins the portable payload without registering or trusting MSIX.
+func PrepareBundle() (string, error)   { return bundleDirectory("Prepare") }
+func BundleDirectory() (string, error) { return bundleDirectory("Locate") }
+
+func bundleDirectory(action string) (string, error) {
+	out, err := run(action)
+	if err != nil {
+		return "", err
+	}
+	const prefix = "PREPARED "
+	if !strings.HasPrefix(out, prefix) || !filepath.IsAbs(strings.TrimPrefix(out, prefix)) {
+		return "", errors.New("Windows 未返回有效的程序目录")
+	}
+	return strings.TrimPrefix(out, prefix), nil
 }

@@ -45,7 +45,7 @@
         <uap:Extension Category="windows.fileTypeAssociation">
           <uap:FileTypeAssociation Name="textviewer.txt">
             <uap:DisplayName>TextViewer</uap:DisplayName>
-            <uap:Logo>Assets\Logo44.png</uap:Logo>
+            <uap:Logo>Assets\FileTypeText.png</uap:Logo>
             <uap:SupportedFileTypes><uap:FileType>.txt</uap:FileType><uap:FileType>.log</uap:FileType></uap:SupportedFileTypes>
           </uap:FileTypeAssociation>
         </uap:Extension>

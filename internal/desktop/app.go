@@ -10,6 +10,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/Oranjekop/TextViewer/internal/document"
+	"github.com/Oranjekop/TextViewer/internal/fileassoc"
+	"github.com/Oranjekop/TextViewer/internal/filetypes"
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
 	"github.com/Oranjekop/TextViewer/internal/update"
 	"github.com/egoist/mygo"
@@ -276,6 +278,19 @@ func (a *App) settingsMenu(m *ui.Menu) {
 	}
 	m.Item("TextViewer v" + a.version).Disabled(true)
 	m.Separator()
+	m.Submenu("文件关联", func(m *ui.Menu) {
+		if m.Item("注册常用文件格式").Disabled(a.busy != "").Chosen() {
+			a.associationAction(true)
+		}
+		if m.Item("默认应用设置…").Chosen() {
+			if err := fileassoc.OpenDefaults(); err != nil {
+				a.fail(err)
+			}
+		}
+		if m.Item("移除文件关联").Disabled(a.busy != "").Chosen() {
+			a.associationAction(false)
+		}
+	})
 	if m.Item("添加到 Windows 11 新版右键菜单").Disabled(a.busy != "").Chosen() {
 		a.shellAction(true)
 	}
@@ -328,7 +343,7 @@ func (a *App) chooseOpen() {
 	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 		Parent: a.Win, Title: "打开文本文件",
 		Filters: []mygo.FileFilter{
-			{Name: "文本和代码文件", Extensions: []string{"txt", "log", "md", "csv", "json", "jsonc", "xml", "yaml", "yml", "toml", "go", "js", "jsx", "ts", "tsx", "py", "html", "css", "sql", "c", "h", "cpp", "cs", "rs", "sh"}},
+			{Name: "文本和代码文件", Extensions: filetypes.Extensions()},
 			{Name: "所有文件", Extensions: []string{"*"}},
 		},
 	})
@@ -510,6 +525,33 @@ func (a *App) shellAction(install bool) {
 			a.status = "已添加到 Windows 11 新版右键菜单"
 			if !install {
 				a.status = "已移除右键菜单"
+			}
+		})
+	}()
+}
+
+func (a *App) associationAction(install bool) {
+	label := "正在注册文件格式…"
+	if !install {
+		label = "正在移除文件关联…"
+	}
+	_, id := a.startJob(label)
+	a.cancellable = false
+	go func() {
+		var err error
+		if install {
+			err = fileassoc.Register()
+		} else {
+			err = fileassoc.Unregister()
+		}
+		a.finishJob(id, func() {
+			if err != nil {
+				a.fail(err)
+				return
+			}
+			a.status = fmt.Sprintf("已注册 %d 种文件格式，可在默认应用设置中选择 TextViewer", len(filetypes.Extensions()))
+			if !install {
+				a.status = "已移除文件关联"
 			}
 		})
 	}()

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Oranjekop/TextViewer/internal/desktop"
+	"github.com/Oranjekop/TextViewer/internal/fileassoc"
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
 	"github.com/egoist/mygo"
 )
@@ -23,6 +24,12 @@ func main() {
 			return
 		case "--uninstall-context-menu":
 			exitWith(shellmenu.Uninstall())
+			return
+		case "--register-file-associations":
+			exitWith(fileassoc.Register())
+			return
+		case "--unregister-file-associations":
+			exitWith(fileassoc.Unregister())
 			return
 		case "--context-menu-status":
 			installed, err := shellmenu.Installed()

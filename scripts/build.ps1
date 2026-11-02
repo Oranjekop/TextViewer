@@ -47,6 +47,7 @@ try {
     $packageAssets = Join-Path $packageRoot 'Assets'
     New-Item -ItemType Directory -Path $packageAssets -Force | Out-Null
     Copy-Item -LiteralPath 'assets\Logo.png', 'assets\Logo44.png' -Destination $packageAssets
+    Copy-Item -LiteralPath 'assets\file-icons\text.png' -Destination (Join-Path $packageAssets 'FileTypeText.png')
     $manifest = [IO.File]::ReadAllText((Join-Path $root 'shell\AppxManifest.xml'))
     $version = (Get-Content -LiteralPath mygo.json -Raw | ConvertFrom-Json).version
     if ($version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {

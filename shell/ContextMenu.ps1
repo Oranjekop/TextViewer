@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Install', 'Remove', 'Status', 'Trust')]
+    [ValidateSet('Install', 'Remove', 'Status', 'Trust', 'Prepare', 'Locate')]
     [string]$Action = 'Install',
     [string]$AppDirectory = $PSScriptRoot,
     [string]$ExpectedThumbprint
@@ -43,7 +43,10 @@ if ($MyInvocation.InvocationName -eq '.') { return }
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $packageName = 'Oranjekop.TextViewer.ContextMenu'
-$existing = Get-AppxPackage -Name $packageName
+$existing = $null
+if ($Action -notin @('Prepare', 'Locate')) {
+    $existing = Get-AppxPackage -Name $packageName
+}
 if ($Action -eq 'Status') {
     if ($existing) { Write-Output 'INSTALLED' } else { Write-Output 'ABSENT' }
     exit 0
@@ -54,43 +57,46 @@ if ($Action -eq 'Remove') {
     Write-Output 'REMOVED'
     exit 0
 }
-if ([Environment]::OSVersion.Version.Build -lt 22000) {
-    throw 'The modern context menu requires Windows 11.'
-}
 $source = (Resolve-Path -LiteralPath $AppDirectory).Path
-$certificatePath = Join-Path $source 'TextViewer.ContextMenu.cer'
-$certificate = New-Object Security.Cryptography.X509Certificates.X509Certificate2($certificatePath)
-if ($Action -eq 'Trust') {
-    if (-not $ExpectedThumbprint -or $certificate.Thumbprint -ne $ExpectedThumbprint) {
-        throw 'The package certificate changed. Cancel and retry from TextViewer.'
+# File associations also use the immutable bundle, independently of MSIX trust.
+if ($Action -in @('Install', 'Trust')) {
+    if ([Environment]::OSVersion.Version.Build -lt 22000) {
+        throw 'The modern context menu requires Windows 11.'
     }
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
-    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-        $arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -Action Trust -AppDirectory "{1}" -ExpectedThumbprint "{2}"' -f $PSCommandPath, $source, $ExpectedThumbprint
-        $process = Start-Process -FilePath $powerShell -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -PassThru -Wait
-        if ($process.ExitCode -ne 0) { throw 'Windows did not trust the TextViewer certificate.' }
+    $certificatePath = Join-Path $source 'TextViewer.ContextMenu.cer'
+    $certificate = New-Object Security.Cryptography.X509Certificates.X509Certificate2($certificatePath)
+    if ($Action -eq 'Trust') {
+        if (-not $ExpectedThumbprint -or $certificate.Thumbprint -ne $ExpectedThumbprint) {
+            throw 'The package certificate changed. Cancel and retry from TextViewer.'
+        }
+        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+        if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+            $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -Action Trust -AppDirectory "{1}" -ExpectedThumbprint "{2}"' -f $PSCommandPath, $source, $ExpectedThumbprint
+            $process = Start-Process -FilePath $powerShell -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -PassThru -Wait
+            if ($process.ExitCode -ne 0) { throw 'Windows did not trust the TextViewer certificate.' }
+            exit 0
+        }
+        # Trust this end-entity signer only after the app's explicit confirmation
+        # and the Windows administrator prompt. Never install a root CA.
+        $constraints = $certificate.Extensions | Where-Object {
+            $_ -is [Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]
+        }
+        if ($constraints -and $constraints.CertificateAuthority) { throw 'A root CA certificate is not permitted.' }
+        Import-Certificate -FilePath $certificatePath -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
+        Write-Output 'TRUSTED'
         exit 0
     }
-    # Trust this end-entity signer only after the app's explicit confirmation
-    # and the Windows administrator prompt. Never install a root CA.
-    $constraints = $certificate.Extensions | Where-Object {
-        $_ -is [Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]
+    $chain = New-Object Security.Cryptography.X509Certificates.X509Chain
+    try {
+        $chain.ChainPolicy.RevocationMode = [Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
+        $trusted = (Test-Path -LiteralPath "Cert:\LocalMachine\TrustedPeople\$($certificate.Thumbprint)") -or $chain.Build($certificate)
+    } finally {
+        $chain.Dispose()
     }
-    if ($constraints -and $constraints.CertificateAuthority) { throw 'A root CA certificate is not permitted.' }
-    Import-Certificate -FilePath $certificatePath -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
-    Write-Output 'TRUSTED'
-    exit 0
+    if (-not $trusted) { throw 'TEXTVIEWER_CERTIFICATE_TRUST_REQUIRED' }
 }
-$chain = New-Object Security.Cryptography.X509Certificates.X509Chain
-try {
-    $chain.ChainPolicy.RevocationMode = [Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
-    $trusted = (Test-Path -LiteralPath "Cert:\LocalMachine\TrustedPeople\$($certificate.Thumbprint)") -or $chain.Build($certificate)
-} finally {
-    $chain.Dispose()
-}
-if (-not $trusted) { throw 'TEXTVIEWER_CERTIFICATE_TRUST_REQUIRED' }
 $required = @('TextViewer.exe', 'TextViewerShell.dll', 'TextViewer.ContextMenu.msix', 'TextViewer.ContextMenu.cer', 'ContextMenu.ps1')
 foreach ($name in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $source $name) -PathType Leaf)) {
@@ -111,6 +117,10 @@ try {
 }
 $installRoot = Join-Path $env:LOCALAPPDATA 'Programs\TextViewer'
 $destination = Join-Path $installRoot "app-$digest"
+if ($Action -eq 'Locate') {
+    Write-Output "PREPARED $destination"
+    exit 0
+}
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
 foreach ($name in $required) {
     $from = Join-Path $source $name
@@ -122,6 +132,10 @@ foreach ($name in $required) {
             throw 'This immutable install directory contains different files. Rebuild with a new application version.'
         }
     }
+}
+if ($Action -eq 'Prepare') {
+    Write-Output "PREPARED $destination"
+    exit 0
 }
 $packagePath = Join-Path $destination 'TextViewer.ContextMenu.msix'
 $statePath = Join-Path $installRoot 'context-menu.json'

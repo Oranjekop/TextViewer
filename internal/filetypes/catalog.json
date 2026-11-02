@@ -1,0 +1,32 @@
+[
+  {
+    "id": "text",
+    "name": "文本",
+    "extensions": [".txt", ".text", ".log", ".nfo", ".lst", ".asc"]
+  },
+  {
+    "id": "markdown",
+    "name": "Markdown",
+    "extensions": [".md", ".markdown", ".mdown", ".rst", ".adoc", ".tex"]
+  },
+  {
+    "id": "code",
+    "name": "代码",
+    "extensions": [".go", ".py", ".pyw", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".hxx", ".cs", ".java", ".kt", ".kts", ".rs", ".rb", ".php", ".swift", ".lua", ".r", ".sql", ".html", ".htm", ".xhtml", ".xml", ".xsd", ".xsl", ".xslt", ".svg", ".css", ".scss", ".sass", ".less", ".vue", ".svelte"]
+  },
+  {
+    "id": "data",
+    "name": "数据",
+    "extensions": [".json", ".jsonc", ".json5", ".jsonl", ".ndjson", ".csv", ".tsv"]
+  },
+  {
+    "id": "config",
+    "name": "配置",
+    "extensions": [".ini", ".cfg", ".conf", ".config", ".properties", ".env", ".editorconfig", ".yaml", ".yml", ".toml"]
+  },
+  {
+    "id": "script",
+    "name": "脚本",
+    "extensions": [".ps1", ".psm1", ".psd1", ".bat", ".cmd", ".sh", ".bash", ".zsh", ".fish", ".cmake", ".mk"]
+  }
+]

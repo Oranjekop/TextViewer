@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"debug/pe"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Oranjekop/TextViewer/internal/filetypes"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -38,6 +40,9 @@ func TestUniversalInstallerInstallsNativePayload(t *testing.T) {
 	config.Name += "-InstallerTest-" + identity
 	config.Identifier += ".test." + identity
 	build := filepath.Join("dist", "native-"+config.Version)
+	if override := os.Getenv("TEXTVIEWER_TEST_BUILD"); override != "" {
+		build = override
+	}
 	setup := filepath.Join(work, "test-setup.exe")
 	if err = buildInstaller(config, build, setup, true); err != nil {
 		t.Fatal(err)
@@ -77,6 +82,16 @@ func TestUniversalInstallerInstallsNativePayload(t *testing.T) {
 	for _, name := range bundleFiles {
 		if _, err := os.Stat(filepath.Join(install, name)); err != nil {
 			t.Fatalf("installed bundle missing %s: %v", name, err)
+		}
+	}
+	executable, err := os.ReadFile(filepath.Join(install, "TextViewer.exe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, group := range filetypes.Groups() {
+		icon, err := os.ReadFile(filepath.Join("internal", "fileassoc", "icons", group.IconName()))
+		if err != nil || !bytes.Contains(executable, icon) {
+			t.Fatalf("installed executable is missing the embedded %s file icon: %v", group.ID, err)
 		}
 	}
 	userFile := filepath.Join(install, "user-created.txt")

@@ -12,13 +12,14 @@
 - UTF-8、UTF-8 BOM、UTF-16 LE/BE BOM 和 GB18030；保存保留编码及 CRLF/LF 换行方式。
 - 浅色、深色和跟随系统；上排 SVG 按钮包含悬浮提示和辅助功能名称。
 - Windows 11 新版资源管理器右键命令“在 TextViewer 中打开”，不是“显示更多选项”里的旧式注册表命令。
+- 81 种常用文本、代码、数据、配置和脚本文件的“打开方式”关联，配套六类文件图标。
 - 在线检查正式版本更新；下载安装前确认，下载后校验 SHA-256，安装前提示保存未保存的文本。
 
 文件被外部程序修改、编码有损或文件只读时，不会直接覆盖原文件。混合 CRLF/LF 的文件由编辑器统一换行方式，不逐行保留混合换行。
 
 ## 使用
 
-从 [v0.0.2 发布页](https://github.com/Oranjekop/TextViewer/releases/tag/v0.0.2) 下载 `TextViewer-Setup-0.0.2-windows.exe`。同一个安装程序自动选择 x64 / ARM64，按当前用户安装，无需为主程序申请管理员权限，提供开始菜单入口、可选桌面快捷方式及系统“已安装的应用”中的卸载入口。
+从 [v0.0.3 发布页](https://github.com/Oranjekop/TextViewer/releases/tag/v0.0.3) 下载 `TextViewer-Setup-0.0.3-windows.exe`。同一个安装程序自动选择 x64 / ARM64，按当前用户安装，无需为主程序申请管理员权限，提供开始菜单入口、可选桌面快捷方式及系统“已安装的应用”中的卸载入口。
 
 需要便携使用时，下载对应架构的 ZIP，并完整解压。安装目录或解压目录中的 `TextViewer.exe` 支持拖入文件，也可把文件路径作为启动参数。启动新实例时，文件交给现有窗口打开。
 
@@ -35,6 +36,25 @@
 | 增大 / 缩小字号 | Ctrl+加号 / Ctrl+减号 |
 | 恢复 16 号字 | Ctrl+0 |
 | 撤销 / 重做 | Ctrl+Z / Ctrl+Y |
+
+### 文件关联与图标
+
+安装程序自动注册常用文件格式。便携版可从“设置 → 文件关联 → 注册常用文件格式”添加到 Windows“打开方式”，也可在那里移除关联或打开默认应用设置。
+
+| 图标类别 | 常见格式 |
+| --- | --- |
+| 文本 | TXT、LOG、TEXT、NFO、LST |
+| Markdown / 文档 | MD、MARKDOWN、RST、ADOC、TEX |
+| 代码 | Go、Python、JavaScript、TypeScript、C/C++、C#、Java、Rust、SQL、HTML、XML、SVG、CSS、Vue 等 |
+| 数据 | JSON、JSONC、JSON5、JSONL、NDJSON、CSV、TSV |
+| 配置 | INI、CFG、CONF、CONFIG、ENV、YAML、TOML、PROPERTIES 等 |
+| 脚本 | PowerShell、BAT、CMD、SH、BASH、ZSH、FISH、CMake、MK |
+
+![TextViewer 文件图标在浅色和深色背景下的预览](assets/file-icons/preview.png)
+
+注册保留已有默认程序。需要双击使用 TextViewer 并显示配套文件图标时，在 Windows“默认应用”中选择相应格式，或从文件“打开方式”中选择 TextViewer 并设为始终使用。脚本关联也只打开编辑器。关联独立于新版右键包的签名信任。
+
+文件图标内置于程序，包含 16–256 px 的十个尺寸；注册时随程序固定到本地安装目录，便携版原目录移动后仍可使用。关联操作只在安装、注册或移除时执行，不参与文档载入、编辑或每帧绘制。
 
 ### Windows 11 新版右键
 
@@ -124,7 +144,7 @@ MyGo 构建会临时生成 `.syso` 资源文件，同一目录内不要并行执
 ### 发行安装包
 
 ```powershell
-.\scripts\build-release.ps1 -Tag v0.0.2 -BootstrapTools
+.\scripts\build-release.ps1 -Tag v0.0.3 -BootstrapTools
 
 # 在独立临时目录实测原生架构选择、版本和安装/卸载；不注册真实右键或更改证书信任
 $env:TEXTVIEWER_TEST_INSTALLER = '1'
@@ -132,13 +152,13 @@ go test ./cmd/release -run '^TestUniversalInstallerInstallsNativePayload$' -coun
 Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 ```
 
-输出到 `dist\release\v0.0.2`：
+输出到 `dist\release\v0.0.3`：
 
 | 文件 | 用途 |
 | --- | --- |
-| `TextViewer-Setup-0.0.2-windows.exe` | x64 / ARM64 合并安装包 |
-| `TextViewer-0.0.2-windows-amd64.zip` | x64 完整便携包 |
-| `TextViewer-0.0.2-windows-arm64.zip` | ARM64 完整便携包 |
+| `TextViewer-Setup-0.0.3-windows.exe` | x64 / ARM64 合并安装包 |
+| `TextViewer-0.0.3-windows-amd64.zip` | x64 完整便携包 |
+| `TextViewer-0.0.3-windows-arm64.zip` | ARM64 完整便携包 |
 | `SHA256SUMS.txt` | 三个公开产物的 SHA-256 |
 
 `.github/workflows/release.yml` 对 main / PR 执行测试、vet、依赖验证及独立注册表中的右键显示配置测试；推送 `vMAJOR.MINOR.PATCH` 标签时，从标签写入应用版本、EXE 版本和 MSIX 身份版本，再顺序编译双架构、运行原生右键测试与隔离安装验收，最后校验完整产物并发布正式 Release。不会覆盖已经正式发布的版本。
@@ -149,8 +169,8 @@ Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 
 ```powershell
 $env:TEXTVIEWER_UPDATE_LIVE_CHECK = '1'
-$env:TEXTVIEWER_PREVIOUS_RELEASE = '0.0.1'
-$env:TEXTVIEWER_EXPECTED_RELEASE = '0.0.2'
+$env:TEXTVIEWER_PREVIOUS_RELEASE = '0.0.2'
+$env:TEXTVIEWER_EXPECTED_RELEASE = '0.0.3'
 go test ./internal/update -run '^TestGitHubReleaseUpdateIntegration$' -count=1 -v -timeout 240s
 Remove-Item Env:\TEXTVIEWER_UPDATE_LIVE_CHECK, Env:\TEXTVIEWER_PREVIOUS_RELEASE, Env:\TEXTVIEWER_EXPECTED_RELEASE
 ```
@@ -160,3 +180,6 @@ Remove-Item Env:\TEXTVIEWER_UPDATE_LIVE_CHECK, Env:\TEXTVIEWER_PREVIOUS_RELEASE,
 - 工具栏 SVG 位于 `internal/desktop/icons`，采用统一 24×24 网格与线宽；仅在启动时解析一次，随主题着色。
 - `assets/app-icon-master.png` 是内置生图工具生成的原始母版，最终提示词及来源记录在 `assets/app-icon-prompt.md`。
 - `go run ./cmd/assets assets` 从母版生成 EXE 与 MSIX 所需 PNG，保留透明度，不会用占位图覆盖生图设计。
+- `assets/file-icons/` 保存六类文件图标的生图母版、PNG 和浅色/深色预览；完整提示词及来源在 `assets/file-icons/prompts.md`。
+- 同一生成命令同时更新 `internal/fileassoc/icons/` 的多尺寸 ICO。它们内置于 EXE，无需额外下载，也不依赖独立图标文件的打包清单。
+- 文件格式清单统一维护在 `internal/filetypes/catalog.json`，供系统关联、图标映射及打开文件对话框使用。
