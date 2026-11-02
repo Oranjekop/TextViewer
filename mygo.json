@@ -5,7 +5,7 @@
   "name": "TextViewer",
   "out": "dist/TextViewer",
   "slug": "textviewer",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "windows": {
     "installerInclude": "shell/installer.nsh"
   }

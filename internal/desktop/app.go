@@ -101,14 +101,19 @@ func (a *App) resetEditor() {
 	a.pendingFocus = true
 }
 
-func (a *App) Ready() {
+func (a *App) Ready() error {
 	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{}))
 	a.Win = mygo.NewWindow(mygo.WindowOptions{
 		Title: "TextViewer",
 		Width: 1120, Height: 780,
 		MinWidth: 760, MinHeight: 420,
+		Hidden:  true,
 		Content: ui.View(a.view),
 	})
+	if err := configureWindowIcon(a.Win); err != nil {
+		a.Win.Destroy()
+		return fmt.Errorf("set application window icon: %w", err)
+	}
 	a.Win.OnClose(func(e *mygo.CloseEvent) {
 		if a.confirming {
 			e.PreventDefault()
@@ -136,6 +141,7 @@ func (a *App) Ready() {
 	})
 	a.updateTitle()
 	a.scheduleUpdateCheck()
+	return nil
 }
 
 func (a *App) OpenArguments(args []string, dir string) {

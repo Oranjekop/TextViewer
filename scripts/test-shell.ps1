@@ -40,4 +40,11 @@ if (-not $Registered) {
         if ($null -eq $previousCapture) { Remove-Item Env:TEXTVIEWER_SHELL_TEST_CAPTURE }
         else { $env:TEXTVIEWER_SHELL_TEST_CAPTURE = $previousCapture }
     }
+    $windowTest = Join-Path $testDirectory 'window-tests.exe'
+    & $tools.Clang -std=c++17 -O2 -static -municode -DUNICODE -D_UNICODE `
+        (Join-Path $root 'shell\TextViewerWindow_test.cpp') -o $windowTest -lgdi32
+    Assert-TextViewerExit 'Native window icon test compilation'
+    $application = (Resolve-Path -LiteralPath (Join-Path $root "$BuildDirectory\TextViewer.exe")).Path
+    & $windowTest $application (Join-Path $root 'assets\icon.png')
+    Assert-TextViewerExit 'Native window icon tests'
 }

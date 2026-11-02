@@ -57,7 +57,10 @@ func main() {
 	}
 	app := desktop.New()
 	mygo.App.WhenReady(func() {
-		app.Ready()
+		if err := app.Ready(); err != nil {
+			exitWith(err)
+			return
+		}
 		app.OpenArguments(os.Args[1:], "")
 	})
 	mygo.App.OnSecondInstance(func(args []string, dir string) {
