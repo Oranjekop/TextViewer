@@ -57,18 +57,18 @@ static HICON windowIcon(HWND window, WPARAM kind) {
     return reinterpret_cast<HICON>(result);
 }
 
-static void verifyIcon(HICON actual, const std::vector<BYTE> &png,
+static void verifyIcon(HICON actual, HMODULE resources,
                        int width, int height) {
     const auto pixels = readIcon(actual);
     require(pixels.width == width && pixels.height == height,
             "Window icon dimensions do not match the current DPI");
-    HICON expected = CreateIconFromResourceEx(const_cast<BYTE *>(png.data()),
-        static_cast<DWORD>(png.size()), TRUE, 0x00030000, width, height, 0);
-    require(expected != nullptr, "Cannot decode the original PNG at this DPI");
+    HICON expected = reinterpret_cast<HICON>(LoadImageW(resources,
+        MAKEINTRESOURCEW(1), IMAGE_ICON, width, height, 0));
+    require(expected != nullptr, "Cannot load the EXE's prefiltered icon resource");
     const auto source = readIcon(expected);
     DestroyIcon(expected);
     require(pixels.pixels == source.pixels,
-            "Window icon pixels do not match the full-resolution app artwork");
+            "Window icon pixels do not match the EXE's prefiltered app artwork");
 }
 
 struct Child {
@@ -104,7 +104,7 @@ static BOOL CALLBACK findWindow(HWND window, LPARAM context) {
 
 static void verifyLaunch(const std::wstring &exe, const std::wstring &desktopName,
                          HDESK desktop, const std::filesystem::path &fixture,
-                         const std::vector<BYTE> &png) {
+                         HMODULE resources) {
     std::ofstream file(fixture);
     file << "TextViewer native window icon regression\n";
     file.close();
@@ -112,6 +112,8 @@ static void verifyLaunch(const std::wstring &exe, const std::wstring &desktopNam
     Child child;
     STARTUPINFOW startup = {sizeof(startup)};
     startup.lpDesktop = const_cast<LPWSTR>(desktopName.c_str());
+    startup.dwFlags = STARTF_USESHOWWINDOW;
+    startup.wShowWindow = SW_SHOWNORMAL;
     std::wstring command = L"\"" + exe + L"\" -- \"" + fixture.wstring() + L"\"";
     require(CreateProcessW(exe.c_str(), command.data(), nullptr, nullptr, FALSE,
                 0, nullptr, nullptr, &startup, &child.process) != FALSE,
@@ -134,10 +136,10 @@ static void verifyLaunch(const std::wstring &exe, const std::wstring &desktopNam
     require(dpi != 0, "Cannot read native window DPI");
     const HICON small = windowIcon(child.window, ICON_SMALL);
     const HICON big = windowIcon(child.window, ICON_BIG);
-    verifyIcon(small, png, GetSystemMetricsForDpi(SM_CXSMICON, dpi),
-                          GetSystemMetricsForDpi(SM_CYSMICON, dpi));
-    verifyIcon(big, png, GetSystemMetricsForDpi(SM_CXICON, dpi),
-                        GetSystemMetricsForDpi(SM_CYICON, dpi));
+    verifyIcon(small, resources, GetSystemMetricsForDpi(SM_CXSMICON, dpi),
+                                GetSystemMetricsForDpi(SM_CYSMICON, dpi));
+    verifyIcon(big, resources, GetSystemMetricsForDpi(SM_CXICON, dpi),
+                              GetSystemMetricsForDpi(SM_CYICON, dpi));
     // Ordinary moves/resizes must not repeatedly decode and allocate icons.
     require(SetWindowPos(child.window, nullptr, 60, 60, 920, 680,
                          SWP_NOACTIVATE | SWP_NOZORDER) != FALSE, "Cannot resize test window");
@@ -145,7 +147,7 @@ static void verifyLaunch(const std::wstring &exe, const std::wstring &desktopNam
     require(windowIcon(child.window, ICON_SMALL) == small &&
             windowIcon(child.window, ICON_BIG) == big,
             "An ordinary move/resize recreated the window icons");
-    std::wcout << fixture.extension().wstring() << L": full-resolution native icons passed; dpi="
+    std::wcout << fixture.extension().wstring() << L": EXE icon resource pixels passed; dpi="
                << dpi << L", small=" << GetSystemMetricsForDpi(SM_CXSMICON, dpi)
                << L", big=" << GetSystemMetricsForDpi(SM_CXICON, dpi) << L"\n";
     require(PostMessageW(child.window, WM_CLOSE, 0, 0) != FALSE, "Cannot close test window");
@@ -163,6 +165,7 @@ int wmain(int argc, wchar_t **argv) {
         return 2;
     }
     HDESK desktop = nullptr;
+    HMODULE resources = nullptr;
     std::filesystem::path isolated;
     try {
         std::ifstream input(std::filesystem::path(argv[2]), std::ios::binary);
@@ -175,17 +178,21 @@ int wmain(int argc, wchar_t **argv) {
         };
         require(dimension(16) >= 256 && dimension(16) == dimension(20),
                 "The app icon source must be square and at least 256 pixels");
-        // Check native PNG decoding at common display scales, without changing
-        // the user's display settings or claiming a physical monitor transition.
+        resources = LoadLibraryExW(argv[1], nullptr,
+            LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
+        require(resources != nullptr, "Cannot read EXE icon resources");
+        // Use the EXE's prefiltered frames as an independent reference. The
+        // old raw-PNG native scaling path can have valid handles and sizes
+        // while still showing visibly different pixels at 16px and 32px.
         for (UINT dpi : {96u, 144u, 192u, 240u, 288u}) {
             for (int metric : {SM_CXSMICON, SM_CXICON}) {
                 const int size = GetSystemMetricsForDpi(metric, dpi);
-                HICON icon = CreateIconFromResourceEx(png.data(),
-                    static_cast<DWORD>(png.size()), TRUE, 0x00030000, size, size, 0);
+                HICON icon = reinterpret_cast<HICON>(LoadImageW(resources,
+                    MAKEINTRESOURCEW(1), IMAGE_ICON, size, size, 0));
                 const auto pixels = readIcon(icon);
                 DestroyIcon(icon);
                 require(size > 0 && pixels.width == size && pixels.height == size,
-                        "The source icon cannot render at a common display scale");
+                        "The EXE icon cannot render at a common display scale");
             }
         }
         wchar_t temporary[MAX_PATH] = {};
@@ -205,8 +212,8 @@ int wmain(int argc, wchar_t **argv) {
         desktop = CreateDesktopW(name.c_str(), nullptr, nullptr, 0, GENERIC_ALL, nullptr);
         require(desktop != nullptr, "Cannot create a private desktop");
         const auto exe = std::filesystem::absolute(argv[1]).wstring();
-        verifyLaunch(exe, name, desktop, isolated / L"sample.txt", png);
-        verifyLaunch(exe, name, desktop, isolated / L"sample.textviewer-icon-test", png);
+        verifyLaunch(exe, name, desktop, isolated / L"sample.txt", resources);
+        verifyLaunch(exe, name, desktop, isolated / L"sample.textviewer-icon-test", resources);
         CloseDesktop(desktop);
         desktop = nullptr;
         // Nonrecursive cleanup preserves any unexpected files.
@@ -215,10 +222,13 @@ int wmain(int argc, wchar_t **argv) {
         DeleteFileW((settings / L"settings.json").c_str());
         RemoveDirectoryW(settings.c_str());
         RemoveDirectoryW(isolated.c_str());
-        std::cout << "Native window icon and 100%-300% PNG decoding tests passed.\n";
+        FreeLibrary(resources);
+        resources = nullptr;
+        std::cout << "Native window pixels and 100%-300% EXE icon resource tests passed.\n";
         return 0;
     } catch (const std::exception &error) {
         if (desktop) CloseDesktop(desktop);
+        if (resources) FreeLibrary(resources);
         std::cerr << error.what() << "\n";
         return 1;
     }
