@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -111,8 +112,7 @@ func (a *App) Ready() error {
 		Content: ui.View(a.view),
 	})
 	if err := configureWindowIcon(a.Win); err != nil {
-		a.Win.Destroy()
-		return fmt.Errorf("set application window icon: %w", err)
+		log.Printf("TextViewer: set application window icon: %v", err)
 	}
 	a.Win.OnClose(func(e *mygo.CloseEvent) {
 		if a.confirming {

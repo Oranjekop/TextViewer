@@ -102,6 +102,71 @@ static BOOL CALLBACK findWindow(HWND window, LPARAM context) {
     return TRUE;
 }
 
+static void startEditor(Child &child, const std::wstring &exe,
+                        const std::wstring &desktopName, const std::wstring &arguments) {
+    STARTUPINFOW startup = {sizeof(startup)};
+    startup.lpDesktop = const_cast<LPWSTR>(desktopName.c_str());
+    startup.dwFlags = STARTF_USESHOWWINDOW;
+    startup.wShowWindow = SW_SHOWNORMAL;
+    std::wstring command = L"\"" + exe + L"\"" + arguments;
+    require(CreateProcessW(exe.c_str(), command.data(), nullptr, nullptr, FALSE,
+                0, nullptr, nullptr, &startup, &child.process) != FALSE,
+            "Cannot start the editor on the private desktop");
+}
+
+static void verifyBlankStartup(const std::wstring &exe, const std::wstring &desktopName,
+                              HDESK desktop, const std::filesystem::path &fixture,
+                              const std::filesystem::path &cache) {
+    std::ofstream(fixture) << "Single-file second-instance handoff\n";
+    Child owner;
+    const ULONGLONG start = GetTickCount64();
+    startEditor(owner, exe, desktopName, L"");
+    for (int i = 0; i < 300 && !owner.window; ++i) {
+        EnumDesktopWindows(desktop, findWindow, reinterpret_cast<LPARAM>(&owner));
+        if (!owner.window && WaitForSingleObject(owner.process.hProcess, 50) != WAIT_TIMEOUT) break;
+    }
+    require(owner.window != nullptr, "Blank Start-menu-style launch closed before creating a window");
+    std::cout << "Blank startup: " << GetTickCount64() - start << " ms\n" << std::flush;
+    require(!std::filesystem::exists(cache / L"TextViewer" / L"Integration"),
+            "Normal startup extracted integration resources");
+    {
+        Child second;
+        startEditor(second, exe, desktopName, L"");
+        require(WaitForSingleObject(second.process.hProcess, 8000) == WAIT_OBJECT_0,
+                "Repeated blank launch did not activate the existing editor");
+        DWORD code = 1;
+        require(GetExitCodeProcess(second.process.hProcess, &code) && code == 0,
+                "Repeated blank launch failed");
+        require(IsWindow(owner.window), "Repeated blank launch closed the original editor");
+    }
+    {
+        Child second;
+        startEditor(second, exe, desktopName, L" -- \"" + fixture.wstring() + L"\"");
+        require(WaitForSingleObject(second.process.hProcess, 8000) == WAIT_OBJECT_0,
+                "File handoff started another editor instead of forwarding");
+        bool opened = false;
+        for (int i = 0; i < 100; ++i) {
+            wchar_t title[1024] = {};
+            GetWindowTextW(owner.window, title, ARRAYSIZE(title));
+            if (std::wstring(title).find(fixture.filename().wstring()) != std::wstring::npos) {
+                opened = true;
+                break;
+            }
+            Sleep(50);
+        }
+        require(opened, "The first file argument was lost during single-instance handoff");
+    }
+    require(WaitForSingleObject(owner.process.hProcess, 30000) == WAIT_TIMEOUT && IsWindow(owner.window),
+            "The editor unexpectedly closed after startup");
+    require(!std::filesystem::exists(cache / L"TextViewer" / L"Integration"),
+            "Idle editor extracted integration resources");
+    require(PostMessageW(owner.window, WM_CLOSE, 0, 0) != FALSE, "Cannot close the blank startup test");
+    require(WaitForSingleObject(owner.process.hProcess, 5000) == WAIT_OBJECT_0,
+            "The editor did not release its activation mutex on exit");
+    owner.window = nullptr;
+    std::cout << "Blank/repeated launch, single-file handoff and 30s lifetime passed.\n" << std::flush;
+}
+
 static void verifyLaunch(const std::wstring &exe, const std::wstring &desktopName,
                          HDESK desktop, const std::filesystem::path &fixture,
                          HMODULE resources) {
@@ -204,7 +269,7 @@ int wmain(int argc, wchar_t **argv) {
         const auto settings = isolated / L"TextViewer";
         std::filesystem::create_directory(settings);
         std::ofstream(settings / L"settings.json") << "{\"autoCheckUpdates\":false}";
-        for (const auto name : {L"TEMP", L"TMP", L"APPDATA", L"XDG_RUNTIME_DIR"}) {
+        for (const auto name : {L"TEMP", L"TMP", L"APPDATA", L"LOCALAPPDATA", L"XDG_RUNTIME_DIR"}) {
             require(SetEnvironmentVariableW(name, isolated.c_str()) != FALSE,
                     "Cannot isolate child preferences or single-instance socket");
         }
@@ -212,6 +277,8 @@ int wmain(int argc, wchar_t **argv) {
         desktop = CreateDesktopW(name.c_str(), nullptr, nullptr, 0, GENERIC_ALL, nullptr);
         require(desktop != nullptr, "Cannot create a private desktop");
         const auto exe = std::filesystem::absolute(argv[1]).wstring();
+        const auto handoff = isolated / L"handoff & \u4e2d\u6587.txt";
+        verifyBlankStartup(exe, name, desktop, handoff, isolated);
         verifyLaunch(exe, name, desktop, isolated / L"sample.txt", resources);
         verifyLaunch(exe, name, desktop, isolated / L"sample.textviewer-icon-test", resources);
         CloseDesktop(desktop);
@@ -219,6 +286,7 @@ int wmain(int argc, wchar_t **argv) {
         // Nonrecursive cleanup preserves any unexpected files.
         DeleteFileW((isolated / L"sample.txt").c_str());
         DeleteFileW((isolated / L"sample.textviewer-icon-test").c_str());
+        DeleteFileW(handoff.c_str());
         DeleteFileW((settings / L"settings.json").c_str());
         RemoveDirectoryW(settings.c_str());
         RemoveDirectoryW(isolated.c_str());

@@ -54,3 +54,44 @@ function Assert-TextViewerExit {
         throw "$Step failed with exit code $LASTEXITCODE."
     }
 }
+
+function Get-TextViewerNSIS {
+    param([switch]$Bootstrap)
+    if ($env:MAKENSIS -and (Test-Path -LiteralPath $env:MAKENSIS)) { return $env:MAKENSIS }
+    $installed = Get-Command makensis -ErrorAction SilentlyContinue
+    if ($installed) { return $installed.Source }
+    $root = Split-Path -Parent $PSScriptRoot
+    $cache = Join-Path $root '.cache'
+    $directories = @((Join-Path $cache 'nsis-3.13'))
+    foreach ($base in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
+        if ($base) { $directories += Join-Path $base 'NSIS' }
+    }
+    $directories += @(Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA 'mygo\nsis-*') -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+    foreach ($directory in $directories) {
+        foreach ($name in @('makensis.exe', 'Bin\makensis.exe')) {
+            $tool = Join-Path $directory $name
+            if (Test-Path -LiteralPath $tool) { return $tool }
+        }
+    }
+    if (-not $Bootstrap) { throw 'NSIS is missing. Run scripts/build-release.ps1 -BootstrapTools or set MAKENSIS.' }
+    New-Item -ItemType Directory -Path $cache -Force | Out-Null
+    $archive = Join-Path $cache 'nsis-3.13.zip'
+    if (-not (Test-Path -LiteralPath $archive)) {
+        $urls = @('https://github.com/egoist/mygo/releases/download/nsis-3.13/nsis-3.13.zip',
+            'https://downloads.sourceforge.net/project/nsis/NSIS%203/3.13/nsis-3.13.zip')
+        foreach ($url in $urls) {
+            try { Invoke-WebRequest -Uri $url -OutFile $archive -UseBasicParsing; break }
+            catch { if ($url -eq $urls[-1]) { throw } }
+        }
+    }
+    $expected = 'ba63dffc4410ee89193e1cb5a41989991bd77c61068da17e3156d136b7b0b3d8'
+    if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) {
+        throw 'NSIS archive checksum mismatch.'
+    }
+    Expand-Archive -LiteralPath $archive -DestinationPath $cache -Force
+    foreach ($name in @('makensis.exe', 'Bin\makensis.exe')) {
+        $tool = Join-Path (Join-Path $cache 'nsis-3.13') $name
+        if (Test-Path -LiteralPath $tool) { return $tool }
+    }
+    throw 'The verified NSIS archive contains no compiler.'
+}

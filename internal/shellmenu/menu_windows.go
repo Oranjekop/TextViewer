@@ -11,22 +11,41 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+
+	"github.com/Oranjekop/TextViewer/internal/shellbundle"
 )
 
 var ErrTrustRequired = errors.New("需要先信任 TextViewer 的本机签名")
 
-func run(action string, extra ...string) (string, error) {
+var preparedBundle = sync.OnceValues(func() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Dir(exe)
-	script := filepath.Join(dir, "ContextMenu.ps1")
-	if _, err = os.Stat(script); err != nil {
-		return "", errors.New("请使用包含完整配套文件的 TextViewer 构建目录")
+	root, err := integrationRoot()
+	if err != nil {
+		return "", err
 	}
+	return shellbundle.Prepare(exe, root)
+})
+
+func integrationRoot() (string, error) {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "TextViewer", "Integration", "bundles"), nil
+}
+
+func run(action string, extra ...string) (string, error) {
+	dir, err := PrepareBundle()
+	if err != nil {
+		return "", err
+	}
+	script := filepath.Join(dir, "ContextMenu.ps1")
 	powershell := filepath.Join(os.Getenv("SystemRoot"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -60,11 +79,11 @@ func powerShellEnvironment() []string {
 // TrustAndInstall is called only after the user confirms why an administrator
 // prompt is needed. It trusts this end-entity signer, never a root CA.
 func TrustAndInstall() error {
-	exe, err := os.Executable()
+	dir, err := PrepareBundle()
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(filepath.Join(filepath.Dir(exe), "TextViewer.ContextMenu.cer"))
+	data, err := os.ReadFile(filepath.Join(dir, "TextViewer.ContextMenu.cer"))
 	if err != nil {
 		return err
 	}
@@ -90,18 +109,18 @@ func Installed() (bool, error) {
 	return strings.Contains(out, "INSTALLED"), err
 }
 
-// PrepareBundle pins the portable payload without registering or trusting MSIX.
-func PrepareBundle() (string, error)   { return bundleDirectory("Prepare") }
-func BundleDirectory() (string, error) { return bundleDirectory("Locate") }
+// PrepareBundle extracts the self-contained executable only when an integration
+// is explicitly configured, without registering or trusting MSIX.
+func PrepareBundle() (string, error) { return preparedBundle() }
 
-func bundleDirectory(action string) (string, error) {
-	out, err := run(action)
+func BundleDirectory() (string, error) {
+	exe, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
-	const prefix = "PREPARED "
-	if !strings.HasPrefix(out, prefix) || !filepath.IsAbs(strings.TrimPrefix(out, prefix)) {
-		return "", errors.New("Windows 未返回有效的程序目录")
+	root, err := integrationRoot()
+	if err != nil {
+		return "", err
 	}
-	return strings.TrimPrefix(out, prefix), nil
+	return shellbundle.Directory(exe, root)
 }

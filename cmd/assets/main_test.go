@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -58,6 +59,22 @@ func TestAssetsComeFromMasterAndKeepTransparency(t *testing.T) {
 		c := color.NRGBAModel.Convert(img.At(size/2, size/2)).(color.NRGBA)
 		if c != (color.NRGBA{R: 12, G: 95, B: 201, A: 255}) {
 			t.Fatalf("%s: master replaced by placeholder artwork: %v", name, c)
+		}
+	}
+	for _, size := range []int{16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256} {
+		for _, variant := range []string{"", "_altform-unplated", "_altform-lightunplated"} {
+			name := fmt.Sprintf("Logo44.targetsize-%d%s.png", size, variant)
+			data, err := os.ReadFile(filepath.Join(dir, "package-icons", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			img, err := png.Decode(bytes.NewReader(data))
+			if err != nil || img.Bounds() != image.Rect(0, 0, size, size) {
+				t.Fatalf("invalid packaged icon %s: %v", name, err)
+			}
+			if _, _, _, alpha := img.At(0, 0).RGBA(); alpha != 0 {
+				t.Fatalf("packaged icon %s lost transparency", name)
+			}
 		}
 	}
 }

@@ -16,7 +16,11 @@ $file = Join-Path $testDirectory 'sample & spaces.txt'
 [IO.File]::WriteAllText($file, 'TextViewer shell extension test')
 $dll = '--registered'
 if (-not $Registered) {
-    $dll = (Resolve-Path -LiteralPath (Join-Path $root "$BuildDirectory\TextViewerShell.dll")).Path
+    $payload = Join-Path $testDirectory ("embedded-" + [guid]::NewGuid().ToString('N'))
+    go run ./cmd/release extract -executable (Join-Path $root "$BuildDirectory\TextViewer.exe") -output $payload
+    Assert-TextViewerExit 'Extract embedded integration for isolated tests'
+    Copy-Item -LiteralPath (Join-Path $root "$BuildDirectory\TextViewer.exe") -Destination (Join-Path $payload 'TextViewer.exe')
+    $dll = Join-Path $payload 'TextViewerShell.dll'
 }
 & $testExe $dll $file $testDirectory
 Assert-TextViewerExit 'Explorer command tests'

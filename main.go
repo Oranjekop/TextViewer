@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/Oranjekop/TextViewer/internal/desktop"
 	"github.com/Oranjekop/TextViewer/internal/fileassoc"
+	"github.com/Oranjekop/TextViewer/internal/instance"
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
 	"github.com/egoist/mygo"
 )
@@ -52,19 +54,24 @@ func main() {
 	mygo.App.SetName("TextViewer")
 	mygo.App.SetVersion(version)
 	mygo.App.SetLocale("zh-CN")
-	if !mygo.App.RequestSingleInstanceLock() {
+	app := desktop.New()
+	lock, forwarded, err := instance.Start(func(args []string, dir string) {
+		mygo.App.WhenReady(func() { app.OpenArguments(args, dir) })
+	})
+	if forwarded {
 		return
 	}
-	app := desktop.New()
+	if err != nil {
+		// An unresponsive old editor must not swallow the user's launch.
+		log.Printf("TextViewer: single instance activation: %v", err)
+	}
+	defer lock.Close()
 	mygo.App.WhenReady(func() {
 		if err := app.Ready(); err != nil {
 			exitWith(err)
 			return
 		}
 		app.OpenArguments(os.Args[1:], "")
-	})
-	mygo.App.OnSecondInstance(func(args []string, dir string) {
-		app.OpenArguments(args[1:], dir)
 	})
 	mygo.App.OnOpenFile(func(path string) {
 		if !strings.HasPrefix(filepath.Base(path), "-") {

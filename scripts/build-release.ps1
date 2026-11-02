@@ -10,6 +10,7 @@ $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'tools.ps1')
 Push-Location $root
 try {
+    $env:MAKENSIS = Get-TextViewerNSIS -Bootstrap:$BootstrapTools
     go run ./cmd/release prepare -tag $Tag
     Assert-TextViewerExit 'Release tag validation'
     $version = (Get-Content -LiteralPath mygo.json -Raw | ConvertFrom-Json).version

@@ -181,5 +181,28 @@ func generateAssets(dir string) error {
 			return err
 		}
 	}
+	return generatePackageIcons(master, filepath.Join(dir, "package-icons"))
+}
+
+// Packaged taskbar/Start icons need explicit unplated variants even when the
+// base PNG and VisualElements BackgroundColor are already transparent.
+func generatePackageIcons(master image.Image, dir string) error {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	for _, size := range []int{16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256} {
+		img := image.NewNRGBA(image.Rect(0, 0, size, size))
+		draw.CatmullRom.Scale(img, img.Bounds(), master, master.Bounds(), draw.Src, nil)
+		var data bytes.Buffer
+		if err := png.Encode(&data, img); err != nil {
+			return err
+		}
+		for _, variant := range []string{"", "_altform-unplated", "_altform-lightunplated"} {
+			name := fmt.Sprintf("Logo44.targetsize-%d%s.png", size, variant)
+			if err := os.WriteFile(filepath.Join(dir, name), data.Bytes(), 0644); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }

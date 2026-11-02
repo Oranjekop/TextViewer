@@ -20,6 +20,7 @@ var (
 	iconUser32       = windows.NewLazySystemDLL("user32.dll")
 	getWindowDPI     = iconUser32.NewProc("GetDpiForWindow")
 	iconMetrics      = iconUser32.NewProc("GetSystemMetricsForDpi")
+	legacyMetrics    = iconUser32.NewProc("GetSystemMetrics")
 	loadIconImage    = iconUser32.NewProc("LoadImageW")
 	createIconImage  = iconUser32.NewProc("CreateIconFromResourceEx")
 	setIconMessage   = iconUser32.NewProc("SendMessageW")
@@ -63,7 +64,13 @@ func configureWindowIcon(window *mygo.Window) error {
 func iconsForDPI(dpi uint32) (windowIcons, error) {
 	var icons windowIcons
 	for i, metric := range []uintptr{49, 11} { // SM_CXSMICON, SM_CXICON.
-		size, _, _ := iconMetrics.Call(metric, uintptr(dpi))
+		var size uintptr
+		if iconMetrics.Find() == nil {
+			size, _, _ = iconMetrics.Call(metric, uintptr(dpi))
+		} else {
+			// Early Windows 10 releases predate the per-window DPI APIs.
+			size, _, _ = legacyMetrics.Call(metric)
+		}
 		if size == 0 || size > 1024 {
 			icons.release()
 			return windowIcons{}, fmt.Errorf("invalid window icon size at DPI %d", dpi)
@@ -126,6 +133,12 @@ func (icons *windowIcons) release() {
 }
 
 func windowDPI(window *mygo.Window) uint32 {
+	if getWindowDPI.Find() != nil {
+		return 96
+	}
 	dpi, _, _ := getWindowDPI.Call(window.NativeHandle())
+	if dpi == 0 {
+		return 96
+	}
 	return uint32(dpi)
 }

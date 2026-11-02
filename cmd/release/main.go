@@ -20,15 +20,13 @@ import (
 	"strings"
 
 	"github.com/Oranjekop/TextViewer/internal/releaseinfo"
+	"github.com/Oranjekop/TextViewer/internal/shellbundle"
 )
 
 //go:embed windows-installer.nsi
 var installerTemplate string
 
-var bundleFiles = []string{
-	"TextViewer.exe", "TextViewerShell.dll", "TextViewer.ContextMenu.msix",
-	"TextViewer.ContextMenu.cer", "ContextMenu.ps1",
-}
+var bundleFiles = []string{"TextViewer.exe"}
 
 type configuration struct {
 	Name, Identifier, Version, Icon string
@@ -49,8 +47,35 @@ func run(args []string) error {
 	tag := flags.String("tag", "", "stable release tag")
 	build := flags.String("build", "dist/native", "MyGo build output")
 	output := flags.String("output", "dist/release", "release assets directory")
+	executable := flags.String("executable", "", "self-contained Windows executable")
+	resources := flags.String("resources", "", "Windows integration build directory")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
+	}
+	if args[0] == "embed" {
+		return shellbundle.Append(*executable, *resources)
+	}
+	if args[0] == "extract" {
+		files, err := shellbundle.Read(*executable)
+		if err != nil {
+			return err
+		}
+		if err = os.MkdirAll(*output, 0700); err != nil {
+			return err
+		}
+		for _, name := range shellbundle.Files {
+			path := filepath.Join(*output, name)
+			file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+			if err != nil {
+				return err
+			}
+			_, err = file.Write(files[name])
+			closeErr := file.Close()
+			if err != nil || closeErr != nil {
+				return fmt.Errorf("extract %s: %v %v", name, err, closeErr)
+			}
+		}
+		return nil
 	}
 	version, err := releaseinfo.TagVersion(*tag)
 	if err != nil {
@@ -152,8 +177,17 @@ func validatePayload(dir, version, arch string) error {
 	} else if arch != "amd64" {
 		return fmt.Errorf("unsupported Windows architecture %q", arch)
 	}
+	files, err := shellbundle.Read(filepath.Join(dir, "TextViewer.exe"))
+	if err != nil {
+		return err
+	}
 	for _, name := range []string{"TextViewer.exe", "TextViewerShell.dll"} {
-		binary, err := pe.Open(filepath.Join(dir, name))
+		var binary *pe.File
+		if name == "TextViewer.exe" {
+			binary, err = pe.Open(filepath.Join(dir, name))
+		} else {
+			binary, err = pe.NewFile(bytes.NewReader(files[name]))
+		}
 		if err != nil {
 			return fmt.Errorf("validate %s %s: %w", arch, name, err)
 		}
@@ -163,13 +197,14 @@ func validatePayload(dir, version, arch string) error {
 			return fmt.Errorf("%s %s has PE machine %x, expected %x", arch, name, actual, machine)
 		}
 	}
-	pkg, err := zip.OpenReader(filepath.Join(dir, "TextViewer.ContextMenu.msix"))
+	pkg, err := zip.NewReader(bytes.NewReader(files["TextViewer.ContextMenu.msix"]), int64(len(files["TextViewer.ContextMenu.msix"])))
 	if err != nil {
 		return err
 	}
-	defer pkg.Close()
 	signed, manifestFound := false, false
+	assets := make(map[string]bool)
 	for _, entry := range pkg.File {
+		assets[strings.ReplaceAll(entry.Name, `\`, "/")] = entry.UncompressedSize64 > 0
 		if entry.Name == "AppxSignature.p7x" && entry.UncompressedSize64 > 0 {
 			signed = true
 		}
@@ -192,6 +227,17 @@ func validatePayload(dir, version, arch string) error {
 	}
 	if !manifestFound || !signed {
 		return fmt.Errorf("%s identity package is missing its manifest or signature", arch)
+	}
+	if !assets["resources.pri"] {
+		return fmt.Errorf("%s identity package is missing its icon resource index", arch)
+	}
+	for _, size := range []int{16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256} {
+		for _, variant := range []string{"", "_altform-unplated", "_altform-lightunplated"} {
+			name := fmt.Sprintf("Assets/Logo44.targetsize-%d%s.png", size, variant)
+			if !assets[name] {
+				return fmt.Errorf("%s identity package is missing %s", arch, name)
+			}
+		}
 	}
 	return nil
 }
@@ -374,17 +420,19 @@ func findNSIS() (string, error) {
 			}
 		}
 	}
+	dirs, _ := filepath.Glob(filepath.Join(".cache", "nsis-*"))
 	if cache, err := os.UserCacheDir(); err == nil {
-		dirs, _ := filepath.Glob(filepath.Join(cache, "mygo", "nsis-*"))
-		slices.Reverse(dirs)
-		for _, dir := range dirs {
-			for _, name := range []string{"makensis.exe", filepath.Join("Bin", "makensis.exe")} {
-				path := filepath.Join(dir, name)
-				if _, err := os.Stat(path); err == nil {
-					return path, nil
-				}
+		cached, _ := filepath.Glob(filepath.Join(cache, "mygo", "nsis-*"))
+		dirs = append(dirs, cached...)
+	}
+	slices.Reverse(dirs)
+	for _, dir := range dirs {
+		for _, name := range []string{"makensis.exe", filepath.Join("Bin", "makensis.exe")} {
+			path := filepath.Join(dir, name)
+			if _, err := os.Stat(path); err == nil {
+				return path, nil
 			}
 		}
 	}
-	return "", fmt.Errorf("NSIS is missing; build a MyGo Windows payload first or set MAKENSIS")
+	return "", fmt.Errorf("NSIS is missing; run scripts/build-release.ps1 -BootstrapTools or set MAKENSIS")
 }

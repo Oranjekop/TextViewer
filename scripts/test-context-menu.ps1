@@ -12,9 +12,26 @@ $family = 'Oranjekop.TextViewer.ContextMenu_0123456789abc'
 $ownEntry = Join-Path $preferences "extensions\$family"
 $otherEntry = Join-Path $preferences 'extensions\Other.App_0123456789abc'
 try {
+    Assert-MenuPreference ((Get-TextViewerMenuMode -Build 10240) -eq 'Classic') 'Windows 10 uses its native context menu without MSIX trust.'
+    Assert-MenuPreference ((Get-TextViewerMenuMode -Build 19045) -eq 'Classic') 'Windows 10 22H2 uses its native context menu.'
+    Assert-MenuPreference ((Get-TextViewerMenuMode -Build 22000) -eq 'Modern') 'Windows 11 uses the modern Explorer menu.'
+    $classes = Join-Path $testRoot 'Classes'
+    $classicDirectory = 'C:\TextViewer fixture & ' + [char]0x4e2d + [char]0x6587
+    Set-TextViewerClassicMenu -Directory $classicDirectory -ClassesPath $classes
+    Assert-MenuPreference (Test-TextViewerClassicMenu -ClassesPath $classes) 'Register the Windows 10 Explorer command.'
+    $server = Join-Path $classes 'CLSID\{9DFEEF63-8B31-4BD2-85A0-A53687CE7C96}\InprocServer32'
+    Assert-MenuPreference ((Get-Item -LiteralPath $server).GetValue('') -eq "$classicDirectory\TextViewerShell.dll") 'Bind COM to the immutable DLL with Unicode and spaces.'
+    Assert-MenuPreference ((Get-ItemProperty -LiteralPath $server).ThreadingModel -eq 'Apartment') 'Use the shell extension apartment model.'
+    $other = Join-Path $classes '*\shell\OtherApp'
+    New-Item -Path $other -Force | Out-Null
+    Remove-TextViewerClassicMenu -ClassesPath $classes
+    Assert-MenuPreference (-not (Test-TextViewerClassicMenu -ClassesPath $classes)) 'Remove the Windows 10 menu.'
+    Assert-MenuPreference (Test-Path -LiteralPath $other) 'Preserve unrelated context menu entries.'
+    Write-Output 'Windows 10 context menu registration tests passed.'
+
     # Older Windows versions have no customization preferences to update.
     Enable-TextViewerModernMenu -PackageFamilyName $family -PreferencesPath $preferences
-    Assert-MenuPreference (-not (Test-Path -LiteralPath $testRoot)) 'Do not create preferences on older Windows.'
+    Assert-MenuPreference (-not (Test-Path -LiteralPath $preferences)) 'Do not create preferences on older Windows.'
 
     New-Item -Path $otherEntry -Force | Out-Null
     New-ItemProperty -LiteralPath $otherEntry -Name 'Enabled' -Value 0 -PropertyType DWord | Out-Null
@@ -49,15 +66,24 @@ try {
 }
 
 function New-IdentityFixture {
-    param([string]$Path, [string]$Version)
+    param([string]$Path, [string]$Version, [switch]$Modern)
     $archive = [IO.Compression.ZipFile]::Open($Path, [IO.Compression.ZipArchiveMode]::Create)
     try {
         $entry = $archive.CreateEntry('AppxManifest.xml')
         $writer = New-Object IO.StreamWriter($entry.Open())
         try {
-            $writer.Write('<Package><Identity Name="Oranjekop.TextViewer.ContextMenu" Publisher="CN=Fixture" Version="{0}" ProcessorArchitecture="x64" /></Package>' -f $Version)
+            $application = ''
+            if ($Modern) {
+                $application = '<Applications><Application xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10" uap10:RuntimeBehavior="win32App" /></Applications>'
+            }
+            $writer.Write(('<Package><Identity Name="Oranjekop.TextViewer.ContextMenu" Publisher="CN=Fixture" Version="{0}" ProcessorArchitecture="x64" />{1}</Package>' -f $Version, $application))
         } finally { $writer.Dispose() }
-        foreach ($name in @('Logo.png', 'Logo44.png', 'FileTypeText.png')) {
+        if ($Modern) {
+            $entry = $archive.CreateEntry('resources.pri')
+            $writer = New-Object IO.StreamWriter($entry.Open())
+            try { $writer.Write('fixture index') } finally { $writer.Dispose() }
+        }
+        foreach ($name in @('Logo.png', 'Logo44.png', 'FileTypeText.png', 'Logo44.targetsize-48_altform-unplated.png', 'Logo44.targetsize-48_altform-lightunplated.png')) {
             $entry = $archive.CreateEntry("Assets/$name")
             $writer = New-Object IO.StreamWriter($entry.Open())
             try { $writer.Write("fixture $name") } finally { $writer.Dispose() }
@@ -161,6 +187,10 @@ try {
     $new = Join-Path $work 'new.msix'
     New-IdentityFixture -Path $old -Version '0.0.1.0'
     New-IdentityFixture -Path $new -Version '0.0.4.0'
+    $modern = Join-Path $work 'modern.msix'
+    New-IdentityFixture -Path $modern -Version '0.0.8.0' -Modern
+    Assert-MenuPreference (-not (Test-TextViewerReusableIdentity -PackagePath $old)) 'Do not reuse the old runtime model or an identity without an icon index.'
+    Assert-MenuPreference (Test-TextViewerReusableIdentity -PackagePath $modern) 'Reuse a compatible trusted Win32 identity with indexed icons.'
     $existing = [pscustomobject]@{Name='Oranjekop.TextViewer.ContextMenu';Publisher='CN=Fixture';Version=[version]'0.0.1.0';Architecture='X64'}
     $previous = @{Directory=$work;PackagePath=$old}
     Assert-MenuPreference ((Get-TextViewerExistingIdentity $existing $previous) -eq $old) 'Reuse only the identity actually registered with Windows.'
@@ -177,7 +207,7 @@ try {
     $visualRoot = Join-Path $work 'visuals'
     Expand-TextViewerVisualAssets -PackagePath $new -Directory $visualRoot
     Expand-TextViewerVisualAssets -PackagePath $new -Directory $visualRoot
-    foreach ($name in @('Logo.png', 'Logo44.png', 'FileTypeText.png')) {
+    foreach ($name in @('Logo.png', 'Logo44.png', 'FileTypeText.png', 'Logo44.targetsize-48_altform-unplated.png', 'Logo44.targetsize-48_altform-lightunplated.png')) {
         Assert-MenuPreference (([IO.File]::ReadAllText((Join-Path $visualRoot "Assets\$name"))) -eq "fixture $name") 'Publish sparse visual resources to the external location.'
     }
     [IO.File]::WriteAllText((Join-Path $visualRoot 'Assets\Logo44.png'), 'tampered')

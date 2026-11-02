@@ -60,7 +60,7 @@ func TestUniversalInstallerInstallsNativePayload(t *testing.T) {
 	if windows.IsWow64Process2(windows.CurrentProcess(), &processMachine, &nativeMachine) == nil && nativeMachine == pe.IMAGE_FILE_MACHINE_ARM64 {
 		native = pe.IMAGE_FILE_MACHINE_ARM64
 	}
-	for _, name := range []string{"TextViewer.exe", "TextViewerShell.dll"} {
+	for _, name := range bundleFiles {
 		binary, err := pe.Open(filepath.Join(install, name))
 		if err != nil {
 			t.Fatal(err)
@@ -83,6 +83,13 @@ func TestUniversalInstallerInstallsNativePayload(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(install, name)); err != nil {
 			t.Fatalf("installed bundle missing %s: %v", name, err)
 		}
+	}
+	installedFiles, err := os.ReadDir(install)
+	if err != nil || len(installedFiles) != 2 {
+		t.Fatalf("installation should contain only TextViewer.exe and Uninstall.exe: %v %v", installedFiles, err)
+	}
+	if err := validatePayload(install, config.Version, map[uint16]string{pe.IMAGE_FILE_MACHINE_AMD64: "amd64", pe.IMAGE_FILE_MACHINE_ARM64: "arm64"}[native]); err != nil {
+		t.Fatal(err)
 	}
 	executable, err := os.ReadFile(filepath.Join(install, "TextViewer.exe"))
 	if err != nil {

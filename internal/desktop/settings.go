@@ -61,7 +61,7 @@ func (a *App) settingsWindow(c *ui.Context) {
 		ui.Checkbox(c, &a.settingsDraft.AutoUpdate, "启动时检查更新").Disabled(a.busy != "")
 		ui.Checkbox(c, &a.settingsDraft.Associations, "关联常用文件格式").
 			Disabled(a.settingsLoading || a.settingsReadFailed || a.busy != "")
-		ui.Checkbox(c, &a.settingsDraft.ContextMenu, "Windows 11 右键菜单").
+		ui.Checkbox(c, &a.settingsDraft.ContextMenu, "Windows 右键菜单").
 			Disabled(a.settingsLoading || a.settingsReadFailed || a.busy != "")
 		if ui.Button(c, "默认应用设置…").Disabled(a.settingsLoading || a.busy != "" || !a.settingsDraft.Associations).Clicked() {
 			if err := fileassoc.OpenDefaults(); err != nil {

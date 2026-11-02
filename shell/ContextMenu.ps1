@@ -5,6 +5,49 @@ param(
     [string]$ExpectedThumbprint
 )
 
+function Get-TextViewerMenuMode {
+    param([int]$Build = [Environment]::OSVersion.Version.Build)
+    if ($Build -ge 22000) { return 'Modern' }
+    return 'Classic'
+}
+
+function Set-TextViewerClassicMenu {
+    param([string]$Directory, [string]$ClassesPath = 'HKCU:\Software\Classes')
+    $command = Join-Path $ClassesPath '*\shell\TextViewer'
+    $server = Join-Path $ClassesPath 'CLSID\{9DFEEF63-8B31-4BD2-85A0-A53687CE7C96}'
+    foreach ($path in @($command, $server, "$server\InprocServer32")) {
+        New-Item -Path $path -Force | Out-Null
+    }
+    $title = [string][char]0x5728 + ' TextViewer ' + [char]0x4e2d + [char]0x6253 + [char]0x5f00
+    New-ItemProperty -LiteralPath $command -Name 'MUIVerb' -Value $title -PropertyType String -Force | Out-Null
+    New-ItemProperty -LiteralPath $command -Name 'ExplorerCommandHandler' -Value '{9DFEEF63-8B31-4BD2-85A0-A53687CE7C96}' -PropertyType String -Force | Out-Null
+    New-ItemProperty -LiteralPath $command -Name 'Icon' -Value ('"{0}",0' -f (Join-Path $Directory 'TextViewer.exe')) -PropertyType String -Force | Out-Null
+    New-ItemProperty -LiteralPath $command -Name 'MultiSelectModel' -Value 'Player' -PropertyType String -Force | Out-Null
+    foreach ($path in @($command, $server)) {
+        New-ItemProperty -LiteralPath $path -Name 'TextViewerOwner' -Value 'TextViewer' -PropertyType String -Force | Out-Null
+    }
+    Set-Item -LiteralPath "$server\InprocServer32" -Value (Join-Path $Directory 'TextViewerShell.dll')
+    New-ItemProperty -LiteralPath "$server\InprocServer32" -Name 'ThreadingModel' -Value 'Apartment' -PropertyType String -Force | Out-Null
+}
+
+function Test-TextViewerClassicMenu {
+    param([string]$ClassesPath = 'HKCU:\Software\Classes')
+    $command = Join-Path $ClassesPath '*\shell\TextViewer'
+    if (-not (Test-Path -LiteralPath $command)) { return $false }
+    $entry = Get-ItemProperty -LiteralPath $command
+    return $entry.TextViewerOwner -eq 'TextViewer' -and $entry.ExplorerCommandHandler -eq '{9DFEEF63-8B31-4BD2-85A0-A53687CE7C96}'
+}
+
+function Remove-TextViewerClassicMenu {
+    param([string]$ClassesPath = 'HKCU:\Software\Classes')
+    foreach ($suffix in @('*\shell\TextViewer', 'CLSID\{9DFEEF63-8B31-4BD2-85A0-A53687CE7C96}')) {
+        $path = Join-Path $ClassesPath $suffix
+        if ((Test-Path -LiteralPath $path) -and (Get-ItemProperty -LiteralPath $path).TextViewerOwner -eq 'TextViewer') {
+            Remove-Item -LiteralPath $path -Recurse -Force
+        }
+    }
+}
+
 function Enable-TextViewerModernMenu {
     param(
         [Parameter(Mandatory = $true)]
@@ -70,6 +113,26 @@ function Get-TextViewerExistingIdentity {
         return $null
     }
     return [IO.Path]::GetFullPath($path)
+}
+
+function Test-TextViewerReusableIdentity {
+    param([string]$PackagePath)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($PackagePath)
+    try {
+        $entry = $archive.GetEntry('AppxManifest.xml')
+        if (-not $entry -or $entry.Length -gt 1MB -or -not $archive.GetEntry('resources.pri')) { return $false }
+        $settings = New-Object Xml.XmlReaderSettings
+        $settings.DtdProcessing = [Xml.DtdProcessing]::Prohibit
+        $stream = $entry.Open()
+        $reader = [Xml.XmlReader]::Create($stream, $settings)
+        try {
+            $document = New-Object Xml.XmlDocument
+            $document.Load($reader)
+            $application = $document.SelectSingleNode('/*[local-name()="Package"]/*[local-name()="Applications"]/*[local-name()="Application"]')
+            return $application -and $application.GetAttribute('RuntimeBehavior', 'http://schemas.microsoft.com/appx/manifest/uap/windows10/10') -eq 'win32App'
+        } finally { $reader.Dispose(); $stream.Dispose() }
+    } finally { $archive.Dispose() }
 }
 
 function Get-TextViewerExternalDirectory {
@@ -168,11 +231,18 @@ function Expand-TextViewerVisualAssets {
     }
     $archive = [IO.Compression.ZipFile]::OpenRead($PackagePath)
     try {
-        foreach ($name in @('Logo.png', 'Logo44.png', 'FileTypeText.png')) {
+        $names = @('Logo.png', 'Logo44.png', 'FileTypeText.png', 'resources.pri')
+        foreach ($entry in $archive.Entries) {
+            if ($entry.FullName -cmatch '^Assets[/\\](Logo44\.targetsize-(16|20|24|30|32|36|40|48|60|64|72|80|96|256)(_altform-(lightunplated|unplated))?\.png)$') {
+                $names += $Matches[1]
+            }
+        }
+        foreach ($name in $names) {
             $entry = $archive.GetEntry("Assets/$name")
             if (-not $entry) { $entry = $archive.GetEntry("Assets\$name") }
+            if ($name -eq 'resources.pri') { $entry = $archive.GetEntry($name) }
             if (-not $entry) {
-                if ($name -eq 'FileTypeText.png') { continue } # Older signed identities use Logo44.
+                if ($name -in @('FileTypeText.png', 'resources.pri')) { continue } # Older identities.
                 throw "Missing visual asset: $name"
             }
             if ($entry.Length -gt 2MB) { throw 'An application visual asset is too large.' }
@@ -181,6 +251,7 @@ function Expand-TextViewerVisualAssets {
             try { $stream.CopyTo($memory); $bytes = $memory.ToArray() }
             finally { $stream.Dispose(); $memory.Dispose() }
             $target = Join-Path $assets $name
+            if ($name -eq 'resources.pri') { $target = Join-Path $Directory $name }
             if (Test-Path -LiteralPath $target) {
                 if ((Get-Item -LiteralPath $target).Attributes -band [IO.FileAttributes]::ReparsePoint -or
                     [Convert]::ToBase64String([IO.File]::ReadAllBytes($target)) -cne [Convert]::ToBase64String($bytes)) {
@@ -203,7 +274,7 @@ function Remove-TextViewerOldBundles {
         throw 'The cleanup root must not be a link.'
     }
     $known = @('TextViewer.exe', 'TextViewerShell.dll', 'TextViewer.ContextMenu.msix',
-        'TextViewer.ContextMenu.cer', 'ContextMenu.ps1',
+        'TextViewer.ContextMenu.cer', 'ContextMenu.ps1', 'resources.pri',
         'FileIcon-text.ico', 'FileIcon-markdown.ico', 'FileIcon-code.ico',
         'FileIcon-data.ico', 'FileIcon-config.ico', 'FileIcon-script.ico')
     foreach ($directory in Get-ChildItem -LiteralPath $root -Directory) {
@@ -228,7 +299,8 @@ function Remove-TextViewerOldBundles {
                 if ($item.Name -ne 'Assets') { $keep = $true; break }
                 foreach ($asset in Get-ChildItem -LiteralPath $item.FullName -Force) {
                     if ($asset.PSIsContainer -or $asset.Attributes -band [IO.FileAttributes]::ReparsePoint -or
-                        $asset.Name -notin @('Logo.png', 'Logo44.png', 'FileTypeText.png')) { $keep = $true; break }
+                        ($asset.Name -notin @('Logo.png', 'Logo44.png', 'FileTypeText.png') -and
+                        $asset.Name -cnotmatch '^Logo44\.targetsize-(16|20|24|30|32|36|40|48|60|64|72|80|96|256)(_altform-(lightunplated|unplated))?\.png$')) { $keep = $true; break }
                     $files += $asset.FullName
                 }
             } elseif ($item.Name -in $known -or $item.Name -cmatch '^TrustedIdentity-[a-f0-9]{16}\.msix$') {
@@ -259,28 +331,35 @@ if ($MyInvocation.InvocationName -eq '.') { return }
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $packageName = 'Oranjekop.TextViewer.ContextMenu'
+$modern = (Get-TextViewerMenuMode) -eq 'Modern'
+$stateRoot = Join-Path $env:LOCALAPPDATA 'TextViewer\Integration'
+$statePath = Join-Path $stateRoot 'context-menu.json'
+$legacyState = Join-Path $env:LOCALAPPDATA 'Programs\TextViewer\context-menu.json'
 $existing = $null
-if ($Action -notin @('Prepare', 'Locate')) {
+if ($modern -and $Action -notin @('Prepare', 'Locate')) {
     $existing = Get-AppxPackage -Name $packageName
 }
 if ($Action -eq 'Status') {
-    if ($existing) { Write-Output 'INSTALLED' } else { Write-Output 'ABSENT' }
+    if ($existing -or (Test-TextViewerClassicMenu)) { Write-Output 'INSTALLED' } else { Write-Output 'ABSENT' }
     exit 0
 }
 if ($Action -eq 'Remove') {
     if ($existing) { $existing | Remove-AppxPackage -ErrorAction Stop }
-    $oldState = Join-Path $env:LOCALAPPDATA 'Programs\TextViewer\context-menu.json'
-    if (Test-Path -LiteralPath $oldState) { Remove-Item -LiteralPath $oldState }
+    Remove-TextViewerClassicMenu
+    foreach ($path in @($statePath, $legacyState)) {
+        if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path }
+    }
     Update-TextViewerShell
     Write-Output 'REMOVED'
     exit 0
 }
 $source = (Resolve-Path -LiteralPath $AppDirectory).Path
-$installRoot = Join-Path $env:LOCALAPPDATA 'Programs\TextViewer'
-$statePath = Join-Path $installRoot 'context-menu.json'
+$installRoot = Join-Path $stateRoot 'bundles'
 $previous = $null
 if (Test-Path -LiteralPath $statePath) {
     $previous = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
+} elseif (Test-Path -LiteralPath $legacyState) {
+    $previous = Get-Content -LiteralPath $legacyState -Raw | ConvertFrom-Json
 }
 if ($Action -eq 'Cleanup') {
     $protected = @($source)
@@ -296,15 +375,13 @@ if ($Action -eq 'Cleanup') {
         throw 'Unable to identify a running TextViewer; old versions were retained.'
     }
     Remove-TextViewerOldBundles -InstallRoot $installRoot -ProtectedPaths $protected -RunningPaths @($running.ExecutablePath)
+    Remove-TextViewerOldBundles -InstallRoot (Join-Path $env:LOCALAPPDATA 'Programs\TextViewer') -ProtectedPaths $protected -RunningPaths @($running.ExecutablePath)
     exit 0
 }
 $previousPackage = $null
 $reuseIdentity = $false
 # File associations also use the immutable bundle, independently of MSIX trust.
-if ($Action -in @('Install', 'Trust')) {
-    if ([Environment]::OSVersion.Version.Build -lt 22000) {
-        throw 'The modern context menu requires Windows 11.'
-    }
+if ($modern -and $Action -in @('Install', 'Trust')) {
     $certificatePath = Join-Path $source 'TextViewer.ContextMenu.cer'
     $certificate = New-Object Security.Cryptography.X509Certificates.X509Certificate2($certificatePath)
     if ($Action -eq 'Trust') {
@@ -346,7 +423,9 @@ if ($Action -in @('Install', 'Trust')) {
         }
     }
     if (-not $trusted) {
-        if (-not $previousPackage) { throw 'TEXTVIEWER_CERTIFICATE_TRUST_REQUIRED' }
+        if (-not $previousPackage -or -not (Test-TextViewerReusableIdentity -PackagePath $previousPackage)) {
+            throw 'TEXTVIEWER_CERTIFICATE_TRUST_REQUIRED'
+        }
         # Sparse identities authorize external content updates. Retain the
         # already registered signed identity instead of leaving its old EXE active.
         $reuseIdentity = $true
@@ -360,16 +439,9 @@ foreach ($name in $required) {
 }
 # An immutable install directory keeps the command valid when the original
 # portable folder is moved and avoids replacing a DLL currently in dllhost.
-$hashes = foreach ($name in $required) {
-    (Get-FileHash -LiteralPath (Join-Path $source $name) -Algorithm SHA256).Hash
-}
-$sha = [Security.Cryptography.SHA256]::Create()
-try {
-    $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($hashes -join '|')))
-    $digest = [BitConverter]::ToString($hash).Replace('-', '').Substring(0, 16).ToLowerInvariant()
-} finally {
-    $sha.Dispose()
-}
+# The single EXE contains the other four files, so its digest identifies all
+# integration resources and agrees with the native extraction code.
+$digest = (Get-FileHash -LiteralPath (Join-Path $source 'TextViewer.exe') -Algorithm SHA256).Hash.Substring(0, 16).ToLowerInvariant()
 $destination = Join-Path $installRoot "app-$digest"
 if ($Action -eq 'Locate') {
     Write-Output "PREPARED $destination"
@@ -388,6 +460,15 @@ foreach ($name in $required) {
 Expand-TextViewerVisualAssets -PackagePath (Join-Path $destination 'TextViewer.ContextMenu.msix') -Directory $destination
 if ($Action -eq 'Prepare') {
     Write-Output "PREPARED $destination"
+    exit 0
+}
+if (-not $modern) {
+    Set-TextViewerClassicMenu -Directory $destination
+    $state = @{ Directory = $destination; Mode = 'Classic' }
+    [IO.File]::WriteAllText($statePath, ($state | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    if (Test-Path -LiteralPath $legacyState) { Remove-Item -LiteralPath $legacyState }
+    Update-TextViewerShell
+    Write-Output "INSTALLED $destination"
     exit 0
 }
 $packagePath = Join-Path $destination 'TextViewer.ContextMenu.msix'
@@ -409,5 +490,7 @@ try {
     Move-Item -LiteralPath $temporaryState -Destination $statePath -Force
 } finally { if (Test-Path -LiteralPath $temporaryState) { Remove-Item -LiteralPath $temporaryState } }
 Enable-TextViewerModernMenu -PackageFamilyName $installed.PackageFamilyName
+Remove-TextViewerClassicMenu
+if (Test-Path -LiteralPath $legacyState) { Remove-Item -LiteralPath $legacyState }
 Update-TextViewerShell
 Write-Output "INSTALLED $destination"
