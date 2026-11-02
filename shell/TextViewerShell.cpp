@@ -6,6 +6,7 @@
 #include <atomic>
 #include <new>
 #include <string>
+#include <vector>
 
 // Explorer only loads this small native COM handler. The Go editor starts
 // after Invoke, never while Explorer is constructing a context menu.
@@ -23,6 +24,20 @@ static std::wstring editorPath() {
     result.resize(slash + 1);
     result += L"TextViewer.exe";
     return result;
+}
+
+static HRESULT launchEditor(const std::wstring &exe, std::wstring arguments) {
+    STARTUPINFOW startup = {sizeof(startup)};
+    startup.dwFlags = STARTF_USESHOWWINDOW;
+    startup.wShowWindow = SW_SHOWNORMAL;
+    PROCESS_INFORMATION process = {};
+    if (!CreateProcessW(exe.c_str(), arguments.data(), nullptr, nullptr, FALSE, 0,
+                        nullptr, nullptr, &startup, &process)) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    return S_OK;
 }
 
 class OpenCommand final : public IExplorerCommand {
@@ -68,10 +83,12 @@ public:
         if (!out) return E_POINTER;
         *out = ECS_HIDDEN;
         DWORD count = 0;
-        if (!items || FAILED(items->GetCount(&count)) || count != 1) return S_OK;
-        SFGAOF attrs = 0;
-        if (SUCCEEDED(items->GetAttributes(SIATTRIBFLAGS_AND, SFGAO_FILESYSTEM | SFGAO_FOLDER, &attrs))
-            && (attrs & SFGAO_FILESYSTEM) && !(attrs & SFGAO_FOLDER)) {
+        if (!items || FAILED(items->GetCount(&count)) || count == 0) return S_OK;
+        SFGAOF filesystem = 0, folders = 0;
+        if (SUCCEEDED(items->GetAttributes(SIATTRIBFLAGS_AND, SFGAO_FILESYSTEM, &filesystem))
+            && (filesystem & SFGAO_FILESYSTEM)
+            && SUCCEEDED(items->GetAttributes(SIATTRIBFLAGS_OR, SFGAO_FOLDER, &folders))
+            && !(folders & SFGAO_FOLDER)) {
             *out = ECS_ENABLED;
         }
         return S_OK;
@@ -79,25 +96,41 @@ public:
     IFACEMETHODIMP Invoke(IShellItemArray *items, IBindCtx *) override {
         if (!items) return E_INVALIDARG;
         DWORD count = 0;
-        if (FAILED(items->GetCount(&count)) || count != 1) return E_INVALIDARG;
-        IShellItem *item = nullptr;
-        HRESULT hr = items->GetItemAt(0, &item);
-        if (FAILED(hr)) return hr;
-        PWSTR path = nullptr;
-        hr = item->GetDisplayName(SIGDN_FILESYSPATH, &path);
-        item->Release();
-        if (FAILED(hr)) return hr;
+        if (FAILED(items->GetCount(&count)) || count == 0) return E_INVALIDARG;
+        EXPCMDSTATE state = ECS_HIDDEN;
+        if (FAILED(GetState(items, TRUE, &state)) || state != ECS_ENABLED) return E_INVALIDARG;
         const auto exe = editorPath();
-        const std::wstring args = L"-- \"" + std::wstring(path) + L"\"";
-        CoTaskMemFree(path);
         if (exe.empty()) return E_FAIL;
-        SHELLEXECUTEINFOW launch = {sizeof(launch)};
-        launch.fMask = SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
-        launch.lpVerb = L"open";
-        launch.lpFile = exe.c_str();
-        launch.lpParameters = args.c_str();
-        launch.nShow = SW_SHOWNORMAL;
-        return ShellExecuteExW(&launch) ? S_OK : HRESULT_FROM_WIN32(GetLastError());
+        const std::wstring prefix = L"\"" + exe + L"\" --";
+        std::wstring args = prefix;
+        std::vector<std::wstring> batches;
+        for (DWORD i = 0; i < count; ++i) {
+            IShellItem *item = nullptr;
+            HRESULT hr = items->GetItemAt(i, &item);
+            if (FAILED(hr)) return hr;
+            PWSTR path = nullptr;
+            hr = item->GetDisplayName(SIGDN_FILESYSPATH, &path);
+            item->Release();
+            if (FAILED(hr)) return hr;
+            const std::wstring argument = L" \"" + std::wstring(path) + L"\"";
+            CoTaskMemFree(path);
+            // CreateProcess includes the executable and terminating NUL in
+            // its limit. Split large selections without dropping any path.
+            if (prefix.size() + argument.size() >= 32767) {
+                return HRESULT_FROM_WIN32(ERROR_FILENAME_EXCED_RANGE);
+            }
+            if (args.size() + argument.size() >= 32767) {
+                batches.push_back(std::move(args));
+                args = prefix;
+            }
+            args += argument;
+        }
+        batches.push_back(std::move(args));
+        for (auto &batch : batches) {
+            const HRESULT hr = launchEditor(exe, std::move(batch));
+            if (FAILED(hr)) return hr;
+        }
+        return S_OK;
     }
     IFACEMETHODIMP GetFlags(EXPCMDFLAGS *out) override {
         if (!out) return E_POINTER;

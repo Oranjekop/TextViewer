@@ -17,6 +17,9 @@ type settingsDraft struct {
 
 func (a *App) chooseSettings() {
 	a.settingsDialog, a.settingsLoading, a.settingsReadFailed, a.settingsError = true, true, false, ""
+	if !a.updateChecking {
+		a.updateMessage, a.updateFailed = "", false
+	}
 	a.settingsDraft = settingsDraft{Theme: a.settings.Theme, AutoUpdate: a.settings.AutoCheckUpdates}
 	a.settingsLoadID++
 	id := a.settingsLoadID
@@ -76,13 +79,18 @@ func (a *App) settingsWindow(c *ui.Context) {
 		}
 		ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
 			ui.Text(c, "TextViewer v"+a.version).TextColor(c.Theme().TextMuted)
+			if a.updateChecking {
+				ui.Spinner(c).Size(14, 14).Label("正在检查更新")
+			}
 			label := "检查更新…"
-			if a.availableUpdate != nil {
+			if a.updateChecking {
+				label = "正在检查更新…"
+			} else if a.availableUpdate != nil {
 				label = "安装更新 v" + a.availableUpdate.Version + "…"
 			}
-			if ui.Button(c, label).Disabled(a.updateChecking || a.busy != "").Clicked() {
-				a.settingsDialog = false
+			if ui.Button(c.Key("check-update"), label).Disabled(a.updateChecking || a.busy != "").Clicked() {
 				if a.availableUpdate != nil {
+					a.settingsDialog = false
 					a.updatePending = true
 					a.showUpdateIfReady()
 				} else {
@@ -90,6 +98,13 @@ func (a *App) settingsWindow(c *ui.Context) {
 				}
 			}
 		})
+		if a.updateMessage != "" {
+			color := c.Theme().TextMuted
+			if a.updateFailed {
+				color = c.Theme().Danger
+			}
+			ui.Text(c, a.updateMessage).Width(360).SingleLine().Tooltip(a.updateMessage).FontSize(12).TextColor(color)
+		}
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 			if ui.Button(c, "取消").Disabled(a.busy != "").Clicked() {
 				a.settingsDialog = false
@@ -166,7 +181,7 @@ func (a *App) saveSettings(trust bool) {
 }
 
 func (a *App) confirmSettingsTrust() {
-	result, err := mygo.Dialog.Message(mygo.MessageOptions{
+	result, err := a.dialogs.Message(mygo.MessageOptions{
 		Parent: a.Win, Type: mygo.MessageQuestion, Title: "添加新版右键菜单",
 		Message: "Windows 需要信任 TextViewer 的本机签名",
 		Detail:  "继续后会出现管理员确认窗口。仅信任 TextViewer 的签名，不会开启开发者模式，也不会更改 TXT 默认打开方式。",

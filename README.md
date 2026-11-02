@@ -4,7 +4,8 @@
 
 ## 功能
 
-- 打开、拖入、编辑和保存文本；支持撤销、重做、自动换行、字体和字号调整，重启后恢复上次选择的字体。
+- 多选打开、拖入、编辑、保存和另存为文本；使用标签切换文件，分别保留光标、滚动位置、撤销记录及保存格式。
+- 支持撤销、重做、自动换行、字体和字号调整，重启后恢复上次选择的字体。
 - 异步查找、上一处/下一处、替换和全部替换；支持区分大小写，替换可撤销。
 - 按文件名识别 JSON、XML、Go、Python、JavaScript、TypeScript、HTML、CSS、SQL 等代码格式；右上角可手动选择语言或纯文本。
 - 代码支持语法着色、缩进参考线和括号匹配；自动字体模式使用等宽字体，也可选择自己的字体。切换显示语言不重排文件内容。
@@ -20,7 +21,7 @@
 
 ## 使用
 
-从 [v0.0.5 发布页](https://github.com/Oranjekop/TextViewer/releases/tag/v0.0.5) 下载 `TextViewer-Setup-0.0.5-windows.exe`。同一个安装程序自动选择 x64 / ARM64，按当前用户安装，无需为主程序申请管理员权限，提供开始菜单入口、可选桌面快捷方式及系统“已安装的应用”中的卸载入口。
+从 [最新正式发布页](https://github.com/Oranjekop/TextViewer/releases/latest) 下载 Windows 合并安装包。同一个安装程序自动选择 x64 / ARM64，按当前用户安装，无需为主程序申请管理员权限，提供开始菜单入口、可选桌面快捷方式及系统“已安装的应用”中的卸载入口。
 
 需要便携使用时，下载对应架构的 ZIP，并完整解压。安装目录或解压目录中的 `TextViewer.exe` 支持拖入文件，也可把文件路径作为启动参数。启动新实例时，文件交给现有窗口打开。
 
@@ -30,6 +31,8 @@
 | --- | --- |
 | 新建 / 打开 / 保存 | Ctrl+N / Ctrl+O / Ctrl+S |
 | 另存为 | Ctrl+Shift+S |
+| 关闭当前标签 | Ctrl+W |
+| 下一个 / 上一个标签 | Ctrl+Tab / Ctrl+Shift+Tab |
 | 查找 / 替换 | Ctrl+F / Ctrl+H |
 | 下一处 / 上一处 | F3 / Shift+F3 |
 | 关闭查找栏 | Esc |
@@ -39,7 +42,11 @@
 | 格式化 JSON | Ctrl+Shift+J |
 | 撤销 / 重做 | Ctrl+Z / Ctrl+Y |
 
-点击上排字体按钮可搜索系统字体并预览，应用后用于当前文件及之后打开的文件，重启后仍保留。选择“自动”恢复普通文本和代码各自的默认字体。字号继续在旁边的下拉框中调整。
+打开对话框可一次选择多个文件，也可同时拖入多个文件或传入多个启动路径；已打开的文件会定位到已有标签。标签过多时可横向滚动，或从标签列表中选择。关闭有修改的标签时提示保存，退出或安装更新前逐一检查所有标签。
+
+工具栏提供“保存”和“另存为”按钮。另存为可选择新的文件名和目录，保留当前编码、换行格式及文件扩展名，保存后当前标签指向新文件；原文件保持原样。
+
+点击上排字体按钮可搜索系统字体并预览，应用后用于所有标签及之后打开的文件，重启后仍保留。选择“自动”恢复普通文本和代码各自的默认字体。字号继续在旁边的下拉框中调整。
 
 点击状态栏编码或换行格式可修改保存格式。编码切换保留当前已解码的文本，以所选编码在下次保存时写入；不是以另一种编码重新解读原文件。只修改编码或换行格式也会标记为未保存。Windows 使用 CRLF，Unix 和 Linux 都使用 LF。
 
@@ -68,11 +75,11 @@
 
 ### Windows 11 新版右键
 
-完整构建目录包含程序、原生 COM 扩展、带签名的稀疏 MSIX 身份包及配套脚本。菜单命令接受一个普通文件，不对文件夹或多选显示。
+完整构建目录包含程序、原生 COM 扩展、带签名的稀疏 MSIX 身份包及配套脚本。菜单命令支持单个或多个普通文件，不对文件夹或含文件夹的混合选择显示。
 
 1. 打开“设置”，勾选“Windows 11 右键菜单”并保存。
 2. 本机开发签名尚未受信任时，应用先询问是否继续；是否接受随后出现的 Windows 管理员确认由用户决定。
-3. 在资源管理器中右键单个文本文件，选择“在 TextViewer 中打开”。
+3. 在资源管理器中选中一个或多个文本文件，右键选择“在 TextViewer 中打开”。
 4. 在“设置”取消勾选“Windows 11 右键菜单”并保存，即可移除菜单。
 
 本机签名信任仅导入指定的终端签名证书至 `LocalMachine\TrustedPeople`，不会导入根证书、开启开发者模式或更改 TXT 默认打开方式。开发证书私钥不会随包分发。正式分发可以在构建时指定已有代码签名证书。移除菜单不会删除系统中的证书信任。
@@ -86,7 +93,7 @@ Windows 11 26H2 自定义右键菜单时，启用操作会同时启用 TextViewe
 ### 在线更新
 
 - 默认启动 3 秒后在后台检查，24 小时内最多自动检查一次；检查失败也会限频，不影响文本编辑。
-- 从“设置 → 检查更新”随时手动检查，也可关闭“启动时检查更新”。仅检查 GitHub 上本仓库的正式 Release，不提供预发布或降级。
+- 从“设置 → 检查更新”随时手动检查，弹窗内显示等待状态和检查结果；发现新版后可选择安装。也可关闭“启动时检查更新”。仅检查 GitHub 上本仓库的正式 Release，不提供预发布或降级。
 - 只有确认后才下载安装包。下载流式校验 SHA-256 清单及 GitHub 提供的摘要，失败或取消会删除未完成文件；执行前再次校验文件。
 - 安装前提示保存修改，然后打开交互式安装程序。安装程序不会强制关闭仍在运行的 TextViewer；更新便携版时会安装到常规安装目录。
 - 检查超时为 15 秒，元数据上限 2 MiB；安装包上限 256 MiB，下载进度最多每 200 ms 更新一次，不扫描或复制正在编辑的全文。
@@ -94,6 +101,8 @@ Windows 11 26H2 自定义右键菜单时，启用操作会同时启用 TextViewe
 ## 大文件与性能
 
 文本存放于分块、持久化的编辑缓冲区，编辑、查找和保存不依赖每次复制全文的 UI 字符串。文件载入后仍驻留内存，不是无限大小的磁盘分页编辑器。
+
+多个文件按顺序在后台载入，避免同时解码大文件产生内存峰值。标签切换复用原有缓冲区和编辑器状态，不重新读取或复制正文；同时打开文件的内存占用会累加。
 
 输入保护上限为 2 GiB；这不等于已验证任意 2 GiB 文件。已实测约 100 MiB 的多行 TXT 和 JSON。单行超过 10,000 UTF-8 字节时跳过着色并重置后续词法状态，避免超长压缩代码的高亮开销；仍保留原文。极长单行的布局成本不在多行样本的保证范围内。
 
@@ -125,7 +134,7 @@ go run . --performance-check -size-mb 100 -wrap=false -output dist/evidence-no-w
 
 ## 开发与构建
 
-依赖 Go 1.27.3、MyGo v0.7.3。首次构建可下载经固定 SHA-256 校验的 LLVM-MinGW 和 Windows SDK 工具：
+使用 Go / MyGo，依赖版本以 `go.mod` 为准。首次构建可下载经固定 SHA-256 校验的 LLVM-MinGW 和 Windows SDK 工具：
 
 ```powershell
 go test ./...
@@ -160,7 +169,8 @@ MyGo 构建会临时生成 `.syso` 资源文件，同一目录内不要并行执
 ### 发行安装包
 
 ```powershell
-.\scripts\build-release.ps1 -Tag v0.0.5 -BootstrapTools
+$tag = 'v' + (Get-Content -LiteralPath mygo.json -Raw | ConvertFrom-Json).version
+.\scripts\build-release.ps1 -Tag $tag -BootstrapTools
 
 # 在独立临时目录实测原生架构选择、版本和安装/卸载；不注册真实右键或更改证书信任
 $env:TEXTVIEWER_TEST_INSTALLER = '1'
@@ -168,13 +178,13 @@ go test ./cmd/release -run '^TestUniversalInstallerInstallsNativePayload$' -coun
 Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 ```
 
-输出到 `dist\release\v0.0.5`：
+输出到 `dist\release\<tag>`：
 
 | 文件 | 用途 |
 | --- | --- |
-| `TextViewer-Setup-0.0.5-windows.exe` | x64 / ARM64 合并安装包 |
-| `TextViewer-0.0.5-windows-amd64.zip` | x64 完整便携包 |
-| `TextViewer-0.0.5-windows-arm64.zip` | ARM64 完整便携包 |
+| `TextViewer-Setup-*-windows.exe` | x64 / ARM64 合并安装包 |
+| `TextViewer-*-windows-amd64.zip` | x64 完整便携包 |
+| `TextViewer-*-windows-arm64.zip` | ARM64 完整便携包 |
 | `SHA256SUMS.txt` | 三个公开产物的 SHA-256 |
 
 `.github/workflows/release.yml` 对 main / PR 执行测试、vet、依赖验证及独立注册表中的右键显示配置测试；推送 `vMAJOR.MINOR.PATCH` 标签时，从标签写入应用版本、EXE 版本和 MSIX 身份版本，再顺序编译双架构、运行原生右键测试与隔离安装验收，最后校验完整产物并发布正式 Release。不会覆盖已经正式发布的版本。
@@ -185,10 +195,9 @@ Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 
 ```powershell
 $env:TEXTVIEWER_UPDATE_LIVE_CHECK = '1'
-$env:TEXTVIEWER_PREVIOUS_RELEASE = '0.0.4'
-$env:TEXTVIEWER_EXPECTED_RELEASE = '0.0.5'
+$env:TEXTVIEWER_EXPECTED_RELEASE = (Get-Content -LiteralPath mygo.json -Raw | ConvertFrom-Json).version
 go test ./internal/update -run '^TestGitHubReleaseUpdateIntegration$' -count=1 -v -timeout 240s
-Remove-Item Env:\TEXTVIEWER_UPDATE_LIVE_CHECK, Env:\TEXTVIEWER_PREVIOUS_RELEASE, Env:\TEXTVIEWER_EXPECTED_RELEASE
+Remove-Item Env:\TEXTVIEWER_UPDATE_LIVE_CHECK, Env:\TEXTVIEWER_EXPECTED_RELEASE
 ```
 
 ### 图标资产

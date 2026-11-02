@@ -12,7 +12,7 @@ var toolbarSVG embed.FS
 var toolbarIcons = loadToolbarIcons()
 
 func loadToolbarIcons() map[string]*ui.SVG {
-	names := []string{"file", "open", "save", "find", "replace", "wrap", "font", "code", "settings", "chevron-down"}
+	names := []string{"file", "open", "save", "save-as", "find", "replace", "wrap", "font", "code", "settings", "chevron-down", "close", "plus"}
 	icons := make(map[string]*ui.SVG, len(names))
 	for _, name := range names {
 		data, err := toolbarSVG.ReadFile("icons/" + name + ".svg")
@@ -36,15 +36,30 @@ func iconButton(c *ui.Context, name, label, tip string, active bool) ui.Element 
 	return b
 }
 
+func dropdownButton(c *ui.Context, text, label, tip string) ui.Element {
+	return ui.Button(c, "").Height(24).MinWidth(0).Padding(0, 6).Gap(4).
+		Label(label).Tooltip(tip).Children(func() {
+		ui.Text(c, text).FontSize(12).SingleLine()
+		ui.Icon(c, toolbarIcons["chevron-down"]).Size(10, 10).TextColor(c.Theme().TextMuted)
+	})
+}
+
 func (a *App) toolbar(c *ui.Context) {
 	t := c.Theme()
 	ui.Toolbar(c, func() {
-		iconButton(c, "file", "文件", "文件", false).Menu(a.fileMenu)
+		ui.Button(c.Key("file"), "").Size(50, 34).MinWidth(50).Padding(0, 6).Gap(4).
+			Label("文件").Tooltip("文件").Children(func() {
+			ui.Icon(c, toolbarIcons["file"]).Size(20, 20)
+			ui.Icon(c, toolbarIcons["chevron-down"]).Size(12, 12).TextColor(t.TextMuted)
+		}).Menu(a.fileMenu)
 		if iconButton(c, "open", "打开", "打开 (Ctrl+O)", false).Disabled(a.busy != "").Clicked() {
 			a.chooseOpen()
 		}
 		if iconButton(c, "save", "保存", "保存 (Ctrl+S)", false).Disabled(a.busy != "").Clicked() {
 			a.save(false, nil)
+		}
+		if iconButton(c, "save-as", "另存为", "另存为 (Ctrl+Shift+S)", false).Disabled(a.busy != "").Clicked() {
+			a.save(true, nil)
 		}
 		ui.Box(c).Width(1).Height(20).Margin(0, 4).Background(t.Border)
 		if iconButton(c, "find", "查找", "查找 (Ctrl+F)", a.findOpen && !a.replacing).Clicked() {

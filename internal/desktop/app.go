@@ -18,9 +18,15 @@ import (
 )
 
 type App struct {
+	*documentTab
 	Win                *mygo.Window
-	doc                *document.Document
-	state              *editor.State
+	tabs               []*documentTab
+	tabIndex           int
+	nextTabID          uint64
+	untitledCount      int
+	revealTab          bool
+	tabWindowWidth     float32
+	dialogs            dialogService
 	editor             ui.Handle
 	queryInput         ui.Handle
 	fontDialog         bool
@@ -34,14 +40,12 @@ type App struct {
 	settingsError      string
 	integration        integrationBackend
 	fontSize           string
-	language           string
 	wrap               bool
 	findOpen           bool
 	replacing          bool
 	query              string
 	replacement        string
 	caseSensitive      bool
-	searchStatus       string
 	status             string
 	busy               string
 	job                uint64
@@ -49,14 +53,16 @@ type App struct {
 	cancellable        bool
 	title              string
 	closed             bool
+	confirming         bool
 	pendingFocus       bool
-	pendingOpen        string
+	pendingOpen        []string
 	settings           preferences
-	column             columnCache
 	version            string
-	updateClient       *update.Client
+	updateClient       updateService
 	updateCancel       context.CancelFunc
 	updateChecking     bool
+	updateMessage      string
+	updateFailed       bool
 	updatePending      bool
 	availableUpdate    *update.Release
 	updateInstaller    *update.Installer
@@ -65,10 +71,10 @@ type App struct {
 func New() *App {
 	prefs := loadPreferences()
 	a := &App{
-		doc: document.New(), settings: prefs, fontSize: strconv.Itoa(prefs.FontSize), wrap: prefs.Wrap,
+		settings: prefs, fontSize: strconv.Itoa(prefs.FontSize), wrap: prefs.Wrap, dialogs: mygo.Dialog,
 		version: mygo.App.Version(), updateClient: update.NewClient(), integration: windowsIntegration{},
 	}
-	a.resetEditor()
+	a.addDocument(document.New())
 	return a
 }
 
@@ -104,15 +110,19 @@ func (a *App) Ready() {
 		Content: ui.View(a.view),
 	})
 	a.Win.OnClose(func(e *mygo.CloseEvent) {
+		if a.confirming {
+			e.PreventDefault()
+			return
+		}
 		if a.busy != "" {
 			e.PreventDefault()
 			a.status = "操作尚未完成，可以先取消"
 			a.Win.Invalidate()
 			return
 		}
-		if a.doc.Dirty() && a.doc.HasChanges() {
+		if a.hasDirtyTabs() {
 			e.PreventDefault()
-			a.confirmLeave(a.Win.Destroy)
+			a.confirmAllTabs(a.Win.Destroy)
 		}
 	})
 	a.Win.OnClosed(func() {
@@ -122,9 +132,7 @@ func (a *App) Ready() {
 		mygo.App.Quit()
 	})
 	a.Win.OnFileDrop(func(e *mygo.FileDropEvent) {
-		if len(e.Paths) > 0 {
-			a.open(e.Paths[0])
-		}
+		a.openFiles(e.Paths)
 	})
 	a.updateTitle()
 	a.scheduleUpdateCheck()
@@ -136,6 +144,7 @@ func (a *App) OpenArguments(args []string, dir string) {
 	}
 	a.Win.Show()
 	a.Win.Focus()
+	var paths []string
 	for _, arg := range args {
 		if arg == "" || strings.HasPrefix(arg, "-") {
 			continue
@@ -143,9 +152,9 @@ func (a *App) OpenArguments(args []string, dir string) {
 		if !filepath.IsAbs(arg) && dir != "" {
 			arg = filepath.Join(dir, arg)
 		}
-		a.open(arg)
-		return
+		paths = append(paths, arg)
 	}
+	a.openFiles(paths)
 }
 
 func (a *App) view(c *ui.Context) {
@@ -156,20 +165,21 @@ func (a *App) view(c *ui.Context) {
 	}
 	a.shortcuts(c)
 	t := c.Theme()
-	fontSize, _ := strconv.Atoi(a.fontSize)
-	code := a.doc.Buffer.Language() != nil
-	a.state.Font = ui.Font{Family: a.editorFont(), Size: float32(fontSize)}
-	a.state.NoIndentGuides = !code
-	a.state.SoftWrap = a.wrap
-	a.state.ReadOnly = a.busy != ""
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
 		a.toolbar(c)
+		ui.Divider(c)
+		a.tabBar(c)
 		ui.Divider(c)
 		if a.findOpen {
 			a.findBar(c)
 			ui.Divider(c)
 		}
-		in := editor.View(c.Key("document"), a.state).Fill().Bind(&a.editor)
+		fontSize, _ := strconv.Atoi(a.fontSize)
+		a.state.Font = ui.Font{Family: a.editorFont(), Size: float32(fontSize)}
+		a.state.NoIndentGuides = a.doc.Buffer.Language() == nil
+		a.state.SoftWrap = a.wrap
+		a.state.ReadOnly = a.busy != ""
+		in := editor.View(c.Key(fmt.Sprintf("document-%d", a.documentTab.id)), a.state).Fill().Bind(&a.editor)
 		if a.pendingFocus {
 			in.Focus()
 			a.pendingFocus = false
@@ -194,14 +204,14 @@ func (a *App) view(c *ui.Context) {
 			snapshot := a.doc.Buffer.Snapshot()
 			column := a.column.at(snapshot, a.state.Cursor())
 			ui.Text(c, fmt.Sprintf("行 %s，列 %s", formatNumber(pos.Line+1), formatNumber(column))).FontSize(12).TextColor(t.TextMuted)
-			ui.Button(c.Key("encoding"), string(a.doc.Encoding)).Height(24).MinWidth(0).Padding(0, 6).
-				FontSize(12).Label("编码").Tooltip("以所选编码保存").Disabled(a.busy != "").Menu(a.encodingMenu)
+			dropdownButton(c.Key("encoding"), string(a.doc.Encoding), "编码", "以所选编码保存").
+				Disabled(a.busy != "").Menu(a.encodingMenu)
 			ending := "LF"
 			if a.doc.Buffer.LineEnding() == "\r\n" {
 				ending = "CRLF"
 			}
-			ui.Button(c.Key("line-ending"), ending).Height(24).MinWidth(0).Padding(0, 6).
-				FontSize(12).Label("换行格式").Tooltip(a.lineEndingLabel()).Disabled(a.busy != "").Menu(a.lineEndingMenu)
+			dropdownButton(c.Key("line-ending"), ending, "换行格式", a.lineEndingLabel()).
+				Disabled(a.busy != "").Menu(a.lineEndingMenu)
 		})
 	})
 	hadModal := a.fontDialog || a.settingsDialog
@@ -241,11 +251,7 @@ func (a *App) editMenu(m *ui.Menu) {
 
 func (a *App) fileMenu(m *ui.Menu) {
 	if m.Item("新建").Shortcut(ui.Ctrl, ui.KeyN).Disabled(a.busy != "").Chosen() {
-		a.confirmLeave(func() {
-			a.doc = document.New()
-			a.resetEditor()
-			a.status, a.searchStatus = "", ""
-		})
+		a.newDocument()
 	}
 	if m.Item("打开…").Shortcut(ui.Ctrl, ui.KeyO).Disabled(a.busy != "").Chosen() {
 		a.chooseOpen()
@@ -255,6 +261,9 @@ func (a *App) fileMenu(m *ui.Menu) {
 	}
 	if m.Item("另存为…").Shortcut(ui.Ctrl|ui.Shift, ui.KeyS).Disabled(a.busy != "").Chosen() {
 		a.save(true, nil)
+	}
+	if m.Item("关闭标签").Shortcut(ui.Ctrl, ui.KeyW).Disabled(a.busy != "").Chosen() {
+		a.closeTab(a.documentTab)
 	}
 	m.Separator()
 	if m.Item("退出").Chosen() {
@@ -267,13 +276,14 @@ func (a *App) shortcuts(c *ui.Context) {
 		return
 	}
 	c.OnShortcut(ui.Ctrl, ui.KeyO, a.chooseOpen)
-	c.OnShortcut(ui.Ctrl, ui.KeyN, func() {
-		if a.busy == "" {
-			a.confirmLeave(func() { a.doc = document.New(); a.resetEditor(); a.status = "" })
-		}
-	})
+	c.OnShortcut(ui.Ctrl, ui.KeyN, a.newDocument)
 	c.OnShortcut(ui.Ctrl, ui.KeyS, func() { a.save(false, nil) })
 	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyS, func() { a.save(true, nil) })
+	c.OnShortcut(ui.Ctrl, ui.KeyW, func() { a.closeTab(a.documentTab) })
+	c.OnShortcut(ui.Ctrl, ui.KeyTab, func() { a.nextTab(1) })
+	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyTab, func() { a.nextTab(-1) })
+	c.OnShortcut(ui.Ctrl, ui.KeyPageDown, func() { a.nextTab(1) })
+	c.OnShortcut(ui.Ctrl, ui.KeyPageUp, func() { a.nextTab(-1) })
 	c.OnShortcut(ui.Ctrl, ui.KeyF, func() { a.showFind(false) })
 	c.OnShortcut(ui.Ctrl, ui.KeyH, func() { a.showFind(true) })
 	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyJ, a.formatJSON)
@@ -304,67 +314,47 @@ func (a *App) persistPreferences() {
 }
 
 func (a *App) chooseOpen() {
-	if a.busy != "" {
+	if a.busy != "" || a.confirming {
 		return
 	}
-	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-		Parent: a.Win, Title: "打开文本文件",
+	a.confirming = true
+	paths, err := a.dialogs.Open(mygo.OpenDialogOptions{
+		Parent: a.Win, Title: "打开文本文件", Multiple: true,
 		Filters: []mygo.FileFilter{
 			{Name: "文本和代码文件", Extensions: filetypes.Extensions()},
 			{Name: "所有文件", Extensions: []string{"*"}},
 		},
 	})
+	a.confirming = false
+	defer a.openNextFile()
 	if err != nil {
 		a.fail(err)
-	} else if len(paths) > 0 {
-		a.open(paths[0])
+	} else {
+		a.openFiles(paths)
 	}
 }
 
 func (a *App) open(path string) {
-	if a.busy != "" {
-		a.pendingOpen = path
-		return
-	}
-	if a.doc.Path != "" && document.SamePath(a.doc.Path, path) {
-		return
-	}
-	a.confirmLeave(func() {
-		ctx, id := a.startJob("正在打开 " + filepath.Base(path) + "…")
-		go func() {
-			doc, err := document.Load(ctx, path)
-			a.finishJob(id, func() {
-				if err != nil {
-					a.fail(err)
-					return
-				}
-				a.doc = doc
-				a.resetEditor()
-				a.state.Select(0, 0)
-				a.searchStatus = ""
-				a.status = ""
-			})
-		}()
-	})
+	a.openFiles([]string{path})
 }
 
 func (a *App) confirmLeave(next func()) {
-	if a.busy != "" {
+	if a.busy != "" || a.confirming {
 		return
 	}
 	if !a.doc.Dirty() || !a.doc.HasChanges() {
 		next()
 		return
 	}
-	name := "未命名.txt"
-	if a.doc.Path != "" {
-		name = filepath.Base(a.doc.Path)
-	}
-	res, err := mygo.Dialog.Message(mygo.MessageOptions{
+	name := a.documentTab.name()
+	a.confirming = true
+	res, err := a.dialogs.Message(mygo.MessageOptions{
 		Parent: a.Win, Type: mygo.MessageQuestion, Title: "TextViewer",
 		Message: "是否保存对“" + name + "”的修改？",
 		Buttons: []string{"保存", "不保存", "取消"}, DefaultButton: 0, CancelButton: 2,
 	})
+	a.confirming = false
+	defer a.openNextFile()
 	if err != nil {
 		a.fail(err)
 		return
@@ -378,18 +368,18 @@ func (a *App) confirmLeave(next func()) {
 }
 
 func (a *App) save(saveAs bool, then func()) {
-	if a.busy != "" {
+	if a.busy != "" || a.confirming {
 		return
 	}
 	path := a.doc.Path
 	if path == "" || saveAs {
 		if path == "" {
-			path = "未命名.txt"
+			path = a.documentTab.name()
 		}
-		chosen, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
-			Parent: a.Win, Title: "保存文本文件", DefaultPath: path,
-			Filters: []mygo.FileFilter{{Name: "文本文件", Extensions: []string{"txt"}}, {Name: "所有文件", Extensions: []string{"*"}}},
-		})
+		a.confirming = true
+		chosen, err := a.dialogs.Save(a.saveDialogOptions(path, saveAs))
+		a.confirming = false
+		defer a.openNextFile()
 		if err != nil {
 			a.fail(err)
 			return
@@ -399,10 +389,19 @@ func (a *App) save(saveAs bool, then func()) {
 		}
 		path = chosen
 	}
+	resolved, err := document.ResolvePath(path)
+	if err != nil {
+		a.fail(err)
+		return
+	}
+	if tab := findOpenTab(a.tabs, resolved); tab != nil && tab != a.documentTab {
+		a.fail(errors.New("目标文件已在其他标签中打开，请切换到该标签保存，或选择其他文件名"))
+		return
+	}
 	snapshot := a.doc.CaptureSave()
 	ctx, id := a.startJob("正在保存…")
 	doc := a.doc
-	go func() {
+	a.background(func() {
 		stamp, err := doc.SaveSnapshot(ctx, path, snapshot)
 		a.finishJob(id, func() {
 			if err != nil {
@@ -416,7 +415,21 @@ func (a *App) save(saveAs bool, then func()) {
 				then()
 			}
 		})
-	}()
+	})
+}
+
+func (a *App) saveDialogOptions(path string, saveAs bool) mygo.SaveDialogOptions {
+	title := "保存文本文件"
+	if saveAs {
+		title = "另存为"
+	}
+	filters := []mygo.FileFilter{{Name: "所有文件", Extensions: []string{"*"}}}
+	if ext := strings.TrimPrefix(filepath.Ext(path), "."); ext != "" {
+		filters = append([]mygo.FileFilter{{Name: strings.ToUpper(ext) + " 文件", Extensions: []string{ext}}}, filters...)
+	}
+	return mygo.SaveDialogOptions{
+		Parent: a.Win, Title: title, DefaultPath: path, Filters: filters,
+	}
 }
 
 func (a *App) startJob(label string) (context.Context, uint64) {
@@ -437,21 +450,37 @@ func (a *App) stopJob() {
 }
 
 func (a *App) finishJob(id uint64, fn func()) {
-	a.Win.Update(func() {
+	a.updateUI(func() {
 		if a.closed || a.job != id {
 			return
 		}
-		a.stopJob()
+		cancel := a.cancel
+		a.cancel = nil
+		if cancel != nil {
+			defer cancel()
+		}
 		a.busy = ""
 		a.state.ReadOnly = false
 		fn()
-		if !a.closed && a.busy == "" && a.pendingOpen != "" {
-			path := a.pendingOpen
-			a.pendingOpen = ""
-			a.open(path)
-		}
+		a.openNextFile()
 		a.showUpdateIfReady()
 	})
+}
+
+func (a *App) background(work func()) {
+	if a.Win == nil {
+		work()
+	} else {
+		go work()
+	}
+}
+
+func (a *App) updateUI(fn func()) {
+	if a.Win == nil {
+		fn()
+	} else {
+		a.Win.Update(fn)
+	}
 }
 
 func (a *App) fail(err error) {
@@ -460,17 +489,14 @@ func (a *App) fail(err error) {
 		return
 	}
 	a.status = err.Error()
-	_, _ = mygo.Dialog.Message(mygo.MessageOptions{
+	_, _ = a.dialogs.Message(mygo.MessageOptions{
 		Parent: a.Win, Type: mygo.MessageError, Title: "TextViewer",
 		Message: "操作未完成", Detail: err.Error(), Buttons: []string{"确定"},
 	})
 }
 
 func (a *App) updateTitle() {
-	name := "未命名.txt"
-	if a.doc.Path != "" {
-		name = filepath.Base(a.doc.Path)
-	}
+	name := a.documentTab.name()
 	if a.doc.Dirty() {
 		name = "* " + name
 	}

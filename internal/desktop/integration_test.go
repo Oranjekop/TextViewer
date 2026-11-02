@@ -189,7 +189,7 @@ func TestSettingsPreview(t *testing.T) {
 	}
 	for _, theme := range []string{"浅色", "深色"} {
 		a := testApp()
-		a.version, a.settings.Theme = "0.0.4", theme
+		a.version, a.settings.Theme = "0.0.5", theme
 		a.integration = &fakeIntegration{state: integrationState{true, true}}
 		tester := ui.NewTester(a.view, 760, 420)
 		_ = tester.Click("设置")

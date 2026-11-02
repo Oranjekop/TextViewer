@@ -11,6 +11,11 @@ import (
 	"github.com/egoist/mygo"
 )
 
+type updateService interface {
+	Check(context.Context, string) (*update.Release, error)
+	Download(context.Context, *update.Release, func(int64, int64)) (*update.Installer, error)
+}
+
 func (a *App) stopUpdateCheck() {
 	if a.updateCancel != nil {
 		a.updateCancel()
@@ -46,16 +51,20 @@ func (a *App) checkUpdates(manual bool) {
 		return
 	}
 	if _, err := releaseinfo.ParseVersion(a.version); err != nil {
+		if manual {
+			a.updateMessage, a.updateFailed = "当前版本无法检查更新", true
+		}
 		return
 	}
 	a.stopUpdateCheck()
 	ctx, cancel := context.WithCancel(context.Background())
 	a.updateCancel, a.updateChecking = cancel, true
+	a.updateMessage, a.updateFailed = "", false
 	a.settings.LastUpdateCheck = time.Now().Unix()
 	a.persistPreferences()
-	go func() {
+	a.background(func() {
 		release, err := a.updateClient.Check(ctx, a.version)
-		a.Win.Update(func() {
+		a.updateUI(func() {
 			if a.closed {
 				return
 			}
@@ -67,24 +76,31 @@ func (a *App) checkUpdates(manual bool) {
 			}
 			if err != nil {
 				if manual && !errors.Is(err, context.Canceled) {
-					a.updateError("暂时无法检查更新，请稍后再试。")
+					a.updateMessage, a.updateFailed = "暂时无法检查更新，请稍后再试。", true
+					if !a.settingsDialog {
+						a.updateError(a.updateMessage)
+					}
 				}
 				return
 			}
 			if release == nil {
 				if manual {
-					a.status = "当前已是最新版本 v" + a.version
+					a.updateMessage = "当前已是最新版本 v" + a.version
+					a.status = a.updateMessage
 				}
 				return
 			}
 			a.availableUpdate, a.updatePending = release, true
+			if manual && a.settingsDialog {
+				a.updatePending = false
+			}
 			a.showUpdateIfReady()
 		})
-	}()
+	})
 }
 
 func (a *App) showUpdateIfReady() {
-	if a.closed || a.Win == nil || a.busy != "" || a.settingsDialog || a.fontDialog || !a.updatePending || a.availableUpdate == nil {
+	if a.closed || a.Win == nil || a.busy != "" || a.confirming || a.settingsDialog || a.fontDialog || !a.updatePending || a.availableUpdate == nil {
 		return
 	}
 	a.updatePending = false
@@ -96,7 +112,7 @@ func (a *App) showUpdateIfReady() {
 		}
 		detail += "\n\n" + string(runes)
 	}
-	result, err := mygo.Dialog.Message(mygo.MessageOptions{
+	result, err := a.dialogs.Message(mygo.MessageOptions{
 		Parent: a.Win, Type: mygo.MessageQuestion, Title: "TextViewer 更新",
 		Message: "发现新版本 v" + a.availableUpdate.Version, Detail: detail,
 		Buttons: []string{"下载安装", "稍后"}, DefaultButton: 1, CancelButton: 1,
@@ -141,7 +157,7 @@ func (a *App) downloadUpdate() {
 }
 
 func (a *App) installUpdate() {
-	a.confirmLeave(func() {
+	a.confirmAllTabs(func() {
 		if err := update.StartInstaller(a.updateInstaller); err != nil {
 			a.updateInstaller = nil
 			a.updateError("安装程序未能启动，请重新下载后再试。")
@@ -153,7 +169,7 @@ func (a *App) installUpdate() {
 
 func (a *App) updateError(message string) {
 	a.status = message
-	_, _ = mygo.Dialog.Message(mygo.MessageOptions{
+	_, _ = a.dialogs.Message(mygo.MessageOptions{
 		Parent: a.Win, Type: mygo.MessageError, Title: "TextViewer 更新",
 		Message: message, Buttons: []string{"确定"},
 	})

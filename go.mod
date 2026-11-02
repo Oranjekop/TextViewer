@@ -3,7 +3,7 @@ module github.com/Oranjekop/TextViewer
 go 1.27.3
 
 require (
-	github.com/egoist/mygo v0.7.3
+	github.com/egoist/mygo v0.7.4
 	golang.org/x/image v0.46.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/text v0.43.0
