@@ -84,6 +84,7 @@ func TrustAndInstall() error {
 
 func Install() error   { _, err := run("Install"); return err }
 func Uninstall() error { _, err := run("Remove"); return err }
+func Cleanup() error   { _, err := run("Cleanup"); return err }
 func Installed() (bool, error) {
 	out, err := run("Status")
 	return strings.Contains(out, "INSTALLED"), err

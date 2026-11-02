@@ -1,6 +1,8 @@
 package shellmenu
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -26,6 +28,22 @@ func TestPortableBundlePreparationDoesNotRequireMSIXTrust(t *testing.T) {
 		data := []byte("fixture only; not an executable, certificate or package")
 		if name == "ContextMenu.ps1" {
 			data = script
+		} else if name == "TextViewer.ContextMenu.msix" {
+			var buffer bytes.Buffer
+			archive := zip.NewWriter(&buffer)
+			for _, asset := range []string{"Logo.png", "Logo44.png", "FileTypeText.png"} {
+				entry, err := archive.Create("Assets/" + asset)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := entry.Write([]byte("packaged " + asset)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := archive.Close(); err != nil {
+				t.Fatal(err)
+			}
+			data = buffer.Bytes()
 		}
 		if err := os.WriteFile(filepath.Join(source, name), data, 0600); err != nil {
 			t.Fatal(err)
@@ -65,6 +83,12 @@ func TestPortableBundlePreparationDoesNotRequireMSIXTrust(t *testing.T) {
 		to, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil || string(from) != string(to) {
 			t.Fatalf("missing or changed immutable %s: %v", name, err)
+		}
+	}
+	for _, asset := range []string{"Logo.png", "Logo44.png", "FileTypeText.png"} {
+		data, err := os.ReadFile(filepath.Join(dir, "Assets", asset))
+		if err != nil || string(data) != "packaged "+asset {
+			t.Fatalf("missing external identity visual asset %s: %s %v", asset, data, err)
 		}
 	}
 	repeated, err := run("Prepare")

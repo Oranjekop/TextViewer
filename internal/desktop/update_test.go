@@ -3,7 +3,6 @@ package desktop
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,19 +18,18 @@ func TestUpdateMenuAndCurrentVersion(t *testing.T) {
 	if err := tester.Click("设置"); err != nil {
 		t.Fatal(err)
 	}
-	menu := strings.Join(tester.Menu(), "|")
 	for _, label := range []string{"检查更新…", "启动时检查更新", "TextViewer v0.0.1"} {
-		if !strings.Contains(menu, label) {
-			t.Fatalf("missing %q in %s", label, menu)
+		if _, ok := tester.Find(label); !ok {
+			t.Fatalf("missing %q in Settings", label)
 		}
 	}
-	tester.CloseMenu()
+	_ = tester.Click("取消")
 	a.availableUpdate = &update.Release{Version: "0.0.2"}
 	tester.Frame()
 	if err := tester.Click("设置"); err != nil {
 		t.Fatal(err)
 	}
-	if menu := strings.Join(tester.Menu(), "|"); !strings.Contains(menu, "安装更新 v0.0.2…") {
+	if _, ok := tester.Find("安装更新 v0.0.2…"); !ok {
 		t.Fatal("downloaded/available update not reachable from Settings")
 	}
 }
@@ -56,7 +54,13 @@ func TestAutoUpdatePreferenceMigratesAndCanBeDisabled(t *testing.T) {
 	if err := tester.Click("设置"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("启动时检查更新"); err != nil {
+	if err := tester.Click("启动时检查更新"); err != nil {
+		t.Fatal(err)
+	}
+	if a.settings.AutoCheckUpdates != true {
+		t.Fatal("draft opt-out applied before saving")
+	}
+	if err := tester.Click("保存设置"); err != nil {
 		t.Fatal(err)
 	}
 	if a.settings.AutoCheckUpdates || loadPreferences().AutoCheckUpdates {

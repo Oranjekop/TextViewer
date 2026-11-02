@@ -3,6 +3,7 @@
 #include <shobjidl.h>
 #include <chrono>
 #include <iostream>
+#include <string>
 
 static void require(bool condition, const char *message) {
     if (!condition) {
@@ -65,6 +66,9 @@ int wmain(int argc, wchar_t **argv) {
     LPWSTR icon = nullptr;
     require(SUCCEEDED(command->GetIcon(nullptr, &icon)), "icon location");
     require(wcsstr(icon, L"TextViewer.exe,0") != nullptr, "icon points at editor");
+    const std::wstring executable(icon, wcslen(icon) - 2);
+    require(GetFileAttributesW(executable.c_str()) != INVALID_FILE_ATTRIBUTES, "registered editor still exists");
+    std::wcout << L"Editor: " << executable << L"\n";
     CoTaskMemFree(icon);
     command->Release();
     if (factory) factory->Release();

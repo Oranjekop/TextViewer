@@ -10,4 +10,5 @@ func TrustAndInstall() error { return Install() }
 
 func Install() error           { return errors.New("此功能需要 Windows 11") }
 func Uninstall() error         { return errors.New("此功能需要 Windows 11") }
+func Cleanup() error           { return nil }
 func Installed() (bool, error) { return false, nil }

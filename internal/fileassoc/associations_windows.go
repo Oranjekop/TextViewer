@@ -71,6 +71,25 @@ func Unregister() error {
 	return nil
 }
 
+func Registered() (bool, error) {
+	state, err := readState(registry.CURRENT_USER)
+	return state.Directory != "", err
+}
+
+// RemoveRegistration is an explicit user opt-out, including a registration
+// owned by another portable copy. Installer uninstall retains its owner guard.
+func RemoveRegistration() error {
+	state, err := readState(registry.CURRENT_USER)
+	if err != nil || state.Directory == "" {
+		return err
+	}
+	if err := unregister(registry.CURRENT_USER, state.Directory); err != nil {
+		return err
+	}
+	notifyShell()
+	return nil
+}
+
 func OpenDefaults() error {
 	uri, _ := windows.UTF16PtrFromString("ms-settings:defaultapps?registeredAppUser=TextViewer")
 	return windows.ShellExecute(0, nil, uri, nil, nil, windows.SW_SHOWNORMAL)

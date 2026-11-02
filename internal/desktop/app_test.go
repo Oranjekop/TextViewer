@@ -14,7 +14,7 @@ import (
 )
 
 func testApp() *App {
-	a := &App{doc: document.New(), fontSize: "16", wrap: true, settings: preferences{FontSize: 16, Wrap: true, Theme: "浅色"}}
+	a := &App{doc: document.New(), fontSize: "16", wrap: true, settings: preferences{FontSize: 16, Wrap: true, Theme: "浅色"}, integration: &fakeIntegration{}}
 	a.resetEditor()
 	return a
 }

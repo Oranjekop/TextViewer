@@ -77,6 +77,8 @@ func (a *App) toolbar(c *ui.Context) {
 			ui.Text(c, a.languageLabel()).SingleLine().Grow(1).FontSize(13)
 			ui.Icon(c, toolbarIcons["chevron-down"]).Size(12, 12).TextColor(t.TextMuted)
 		}).Menu(a.languageMenu)
-		iconButton(c, "settings", "设置", "设置", false).Menu(a.settingsMenu)
+		if iconButton(c, "settings", "设置", "设置", false).Disabled(a.busy != "").Clicked() {
+			a.chooseSettings()
+		}
 	}).FillWidth().Height(54).Padding(10, 14).Gap(6).Background(t.Surface).Label("工具栏")
 }

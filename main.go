@@ -31,6 +31,12 @@ func main() {
 		case "--unregister-file-associations":
 			exitWith(fileassoc.Unregister())
 			return
+		case "--configure-windows-integration":
+			exitWith(desktop.ConfigureInstalledIntegration())
+			return
+		case "--cleanup-old-versions":
+			exitWith(shellmenu.Cleanup())
+			return
 		case "--context-menu-status":
 			installed, err := shellmenu.Installed()
 			if err != nil {

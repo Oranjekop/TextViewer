@@ -10,9 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Oranjekop/TextViewer/internal/document"
-	"github.com/Oranjekop/TextViewer/internal/fileassoc"
 	"github.com/Oranjekop/TextViewer/internal/filetypes"
-	"github.com/Oranjekop/TextViewer/internal/shellmenu"
 	"github.com/Oranjekop/TextViewer/internal/update"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -20,48 +18,55 @@ import (
 )
 
 type App struct {
-	Win             *mygo.Window
-	doc             *document.Document
-	state           *editor.State
-	editor          ui.Handle
-	queryInput      ui.Handle
-	fontDialog      bool
-	fontDraft       string
-	fontOptions     []string
-	fontSize        string
-	language        string
-	wrap            bool
-	findOpen        bool
-	replacing       bool
-	query           string
-	replacement     string
-	caseSensitive   bool
-	searchStatus    string
-	status          string
-	busy            string
-	job             uint64
-	cancel          context.CancelFunc
-	cancellable     bool
-	title           string
-	closed          bool
-	pendingFocus    bool
-	pendingOpen     string
-	settings        preferences
-	column          columnCache
-	version         string
-	updateClient    *update.Client
-	updateCancel    context.CancelFunc
-	updateChecking  bool
-	updatePending   bool
-	availableUpdate *update.Release
-	updateInstaller *update.Installer
+	Win                *mygo.Window
+	doc                *document.Document
+	state              *editor.State
+	editor             ui.Handle
+	queryInput         ui.Handle
+	fontDialog         bool
+	fontDraft          string
+	fontOptions        []string
+	settingsDialog     bool
+	settingsDraft      settingsDraft
+	settingsLoading    bool
+	settingsReadFailed bool
+	settingsLoadID     uint64
+	settingsError      string
+	integration        integrationBackend
+	fontSize           string
+	language           string
+	wrap               bool
+	findOpen           bool
+	replacing          bool
+	query              string
+	replacement        string
+	caseSensitive      bool
+	searchStatus       string
+	status             string
+	busy               string
+	job                uint64
+	cancel             context.CancelFunc
+	cancellable        bool
+	title              string
+	closed             bool
+	pendingFocus       bool
+	pendingOpen        string
+	settings           preferences
+	column             columnCache
+	version            string
+	updateClient       *update.Client
+	updateCancel       context.CancelFunc
+	updateChecking     bool
+	updatePending      bool
+	availableUpdate    *update.Release
+	updateInstaller    *update.Installer
 }
 
 func New() *App {
 	prefs := loadPreferences()
 	a := &App{
 		doc: document.New(), settings: prefs, fontSize: strconv.Itoa(prefs.FontSize), wrap: prefs.Wrap,
-		version: mygo.App.Version(), updateClient: update.NewClient(),
+		version: mygo.App.Version(), updateClient: update.NewClient(), integration: windowsIntegration{},
 	}
 	a.resetEditor()
 	return a
@@ -199,7 +204,13 @@ func (a *App) view(c *ui.Context) {
 				FontSize(12).Label("换行格式").Tooltip(a.lineEndingLabel()).Disabled(a.busy != "").Menu(a.lineEndingMenu)
 		})
 	})
+	hadModal := a.fontDialog || a.settingsDialog
 	a.fontChooser(c)
+	a.settingsWindow(c)
+	if hadModal && !a.fontDialog && !a.settingsDialog {
+		a.pendingFocus = true
+		a.showUpdateIfReady()
+	}
 	a.updateTitle()
 }
 
@@ -251,65 +262,8 @@ func (a *App) fileMenu(m *ui.Menu) {
 	}
 }
 
-func (a *App) settingsMenu(m *ui.Menu) {
-	if m.Item("字体…").Chosen() {
-		a.chooseFont()
-	}
-	m.Submenu("外观", func(m *ui.Menu) {
-		for _, name := range []string{"跟随系统", "浅色", "深色"} {
-			if m.Item(name).Radio(a.settings.Theme == name).Chosen() {
-				a.settings.Theme = name
-				a.persistPreferences()
-			}
-		}
-	})
-	m.Submenu("编码", a.encodingMenu)
-	m.Submenu("换行格式", a.lineEndingMenu)
-	m.Separator()
-	updateLabel := "检查更新…"
-	if a.availableUpdate != nil {
-		updateLabel = "安装更新 v" + a.availableUpdate.Version + "…"
-	}
-	if m.Item(updateLabel).Disabled(a.updateChecking || a.busy != "").Chosen() {
-		if a.availableUpdate != nil {
-			a.updatePending = true
-			a.showUpdateIfReady()
-		} else {
-			a.checkUpdates(true)
-		}
-	}
-	if m.Item("启动时检查更新").Checked(a.settings.AutoCheckUpdates).Chosen() {
-		a.settings.AutoCheckUpdates = !a.settings.AutoCheckUpdates
-		a.persistPreferences()
-		if !a.settings.AutoCheckUpdates {
-			a.stopUpdateCheck()
-		}
-	}
-	m.Item("TextViewer v" + a.version).Disabled(true)
-	m.Separator()
-	m.Submenu("文件关联", func(m *ui.Menu) {
-		if m.Item("注册常用文件格式").Disabled(a.busy != "").Chosen() {
-			a.associationAction(true)
-		}
-		if m.Item("默认应用设置…").Chosen() {
-			if err := fileassoc.OpenDefaults(); err != nil {
-				a.fail(err)
-			}
-		}
-		if m.Item("移除文件关联").Disabled(a.busy != "").Chosen() {
-			a.associationAction(false)
-		}
-	})
-	if m.Item("添加到 Windows 11 新版右键菜单").Disabled(a.busy != "").Chosen() {
-		a.shellAction(true)
-	}
-	if m.Item("移除右键菜单").Disabled(a.busy != "").Chosen() {
-		a.shellAction(false)
-	}
-}
-
 func (a *App) shortcuts(c *ui.Context) {
-	if a.fontDialog {
+	if a.fontDialog || a.settingsDialog {
 		return
 	}
 	c.OnShortcut(ui.Ctrl, ui.KeyO, a.chooseOpen)
@@ -510,89 +464,6 @@ func (a *App) fail(err error) {
 		Parent: a.Win, Type: mygo.MessageError, Title: "TextViewer",
 		Message: "操作未完成", Detail: err.Error(), Buttons: []string{"确定"},
 	})
-}
-
-func (a *App) shellAction(install bool) {
-	label := "正在添加右键菜单…"
-	if !install {
-		label = "正在移除右键菜单…"
-	}
-	_, id := a.startJob(label)
-	a.cancellable = false
-	go func() {
-		var err error
-		if install {
-			err = shellmenu.Install()
-		} else {
-			err = shellmenu.Uninstall()
-		}
-		a.finishJob(id, func() {
-			if errors.Is(err, shellmenu.ErrTrustRequired) {
-				a.confirmShellTrust()
-				return
-			}
-			if err != nil {
-				a.fail(err)
-				return
-			}
-			a.status = "已添加到 Windows 11 新版右键菜单"
-			if !install {
-				a.status = "已移除右键菜单"
-			}
-		})
-	}()
-}
-
-func (a *App) associationAction(install bool) {
-	label := "正在注册文件格式…"
-	if !install {
-		label = "正在移除文件关联…"
-	}
-	_, id := a.startJob(label)
-	a.cancellable = false
-	go func() {
-		var err error
-		if install {
-			err = fileassoc.Register()
-		} else {
-			err = fileassoc.Unregister()
-		}
-		a.finishJob(id, func() {
-			if err != nil {
-				a.fail(err)
-				return
-			}
-			a.status = fmt.Sprintf("已注册 %d 种文件格式，可在默认应用设置中选择 TextViewer", len(filetypes.Extensions()))
-			if !install {
-				a.status = "已移除文件关联"
-			}
-		})
-	}()
-}
-
-func (a *App) confirmShellTrust() {
-	res, err := mygo.Dialog.Message(mygo.MessageOptions{
-		Parent: a.Win, Type: mygo.MessageQuestion, Title: "添加新版右键菜单",
-		Message: "Windows 需要信任 TextViewer 的本机签名",
-		Detail:  "继续后会出现管理员确认窗口。仅信任 TextViewer 的签名，不会开启开发者模式，也不会更改 TXT 默认打开方式。",
-		Buttons: []string{"继续", "取消"}, DefaultButton: 1, CancelButton: 1,
-	})
-	if err != nil || res.Button != 0 {
-		a.status = "未添加右键菜单"
-		return
-	}
-	_, id := a.startJob("正在等待 Windows 确认…")
-	a.cancellable = false
-	go func() {
-		err := shellmenu.TrustAndInstall()
-		a.finishJob(id, func() {
-			if err != nil {
-				a.fail(err)
-				return
-			}
-			a.status = "已添加到 Windows 11 新版右键菜单"
-		})
-	}()
 }
 
 func (a *App) updateTitle() {

@@ -29,16 +29,16 @@ func TestOutputSettingsMenusMarkMetadataDirty(t *testing.T) {
 	if a.doc.Buffer.LineEnding() != "\n" || a.doc.Buffer.Version() != snapshot.Version() {
 		t.Fatal("line ending selection edited the text")
 	}
-	if err := tester.Click("设置"); err != nil {
+	if err := tester.Click("编码"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("编码", "UTF-8"); err != nil {
+	if err := tester.ChooseMenuItem("UTF-8"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("设置"); err != nil {
+	if err := tester.Click("换行格式"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.ChooseMenuItem("换行格式", "Windows (CRLF)"); err != nil {
+	if err := tester.ChooseMenuItem("Windows (CRLF)"); err != nil {
 		t.Fatal(err)
 	}
 	if a.doc.Dirty() || a.doc.HasChanges() || a.doc.Buffer.Snapshot() != snapshot {
@@ -50,10 +50,10 @@ func TestOutputSettingsCannotChangeDuringJob(t *testing.T) {
 	a := testApp()
 	a.busy = "正在保存…"
 	tester := ui.NewTester(a.view, 760, 600)
-	if err := tester.Click("设置"); err != nil {
+	if err := tester.Click("编码"); err != nil {
 		t.Fatal(err)
 	}
-	_ = tester.ChooseMenuItem("编码", "UTF-16 BE")
+	_ = tester.ChooseMenuItem("UTF-16 BE")
 	if a.doc.Encoding != document.UTF8 {
 		t.Fatal("encoding changed during a save")
 	}

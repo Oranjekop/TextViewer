@@ -20,7 +20,7 @@
 
 ## 使用
 
-从 [v0.0.4 发布页](https://github.com/Oranjekop/TextViewer/releases/tag/v0.0.4) 下载 `TextViewer-Setup-0.0.4-windows.exe`。同一个安装程序自动选择 x64 / ARM64，按当前用户安装，无需为主程序申请管理员权限，提供开始菜单入口、可选桌面快捷方式及系统“已安装的应用”中的卸载入口。
+从 [v0.0.5 发布页](https://github.com/Oranjekop/TextViewer/releases/tag/v0.0.5) 下载 `TextViewer-Setup-0.0.5-windows.exe`。同一个安装程序自动选择 x64 / ARM64，按当前用户安装，无需为主程序申请管理员权限，提供开始菜单入口、可选桌面快捷方式及系统“已安装的应用”中的卸载入口。
 
 需要便携使用时，下载对应架构的 ZIP，并完整解压。安装目录或解压目录中的 `TextViewer.exe` 支持拖入文件，也可把文件路径作为启动参数。启动新实例时，文件交给现有窗口打开。
 
@@ -41,13 +41,15 @@
 
 点击上排字体按钮可搜索系统字体并预览，应用后用于当前文件及之后打开的文件，重启后仍保留。选择“自动”恢复普通文本和代码各自的默认字体。字号继续在旁边的下拉框中调整。
 
-点击状态栏编码或换行格式可修改保存格式，也可从“设置”进入相同选项。编码切换保留当前已解码的文本，以所选编码在下次保存时写入；不是以另一种编码重新解读原文件。只修改编码或换行格式也会标记为未保存。Windows 使用 CRLF，Unix 和 Linux 都使用 LF。
+点击状态栏编码或换行格式可修改保存格式。编码切换保留当前已解码的文本，以所选编码在下次保存时写入；不是以另一种编码重新解读原文件。只修改编码或换行格式也会标记为未保存。Windows 使用 CRLF，Unix 和 Linux 都使用 LF。
 
 从“代码格式”菜单或编辑区右键选择“格式化 JSON”，也可按 Ctrl+Shift+J。该操作处理整个文档，只接受严格 JSON，不处理 JSONC 注释或 JSON5 语法。格式化在后台执行，可在应用结果前取消，保留当前编码和换行格式。输入上限 128 MiB，预估缩进输出上限 256 MiB；超过限制时保留原文。
 
 ### 文件关联与图标
 
-安装程序自动注册常用文件格式。便携版可从“设置 → 文件关联 → 注册常用文件格式”添加到 Windows“打开方式”，也可在那里移除关联或打开默认应用设置。
+点击右上角“设置”，勾选“关联常用文件格式”并保存，即可添加到 Windows“打开方式”。取消勾选后保存会移除 TextViewer 的关联注册；点击“取消”不改变系统设置。弹窗内也可打开 Windows 默认应用设置。
+
+首次安装由用户在设置中选择是否启用文件关联和新版右键。升级保留已有启用状态及保存的选择，取消勾选的功能不会在后续升级时自动恢复。
 
 | 图标类别 | 常见格式 |
 | --- | --- |
@@ -68,18 +70,18 @@
 
 完整构建目录包含程序、原生 COM 扩展、带签名的稀疏 MSIX 身份包及配套脚本。菜单命令接受一个普通文件，不对文件夹或多选显示。
 
-1. 从“设置”选择“添加到 Windows 11 新版右键菜单”。
+1. 打开“设置”，勾选“Windows 11 右键菜单”并保存。
 2. 本机开发签名尚未受信任时，应用先询问是否继续；是否接受随后出现的 Windows 管理员确认由用户决定。
 3. 在资源管理器中右键单个文本文件，选择“在 TextViewer 中打开”。
-4. 从“设置”选择“移除右键菜单”可以撤销注册。
+4. 在“设置”取消勾选“Windows 11 右键菜单”并保存，即可移除菜单。
 
 本机签名信任仅导入指定的终端签名证书至 `LocalMachine\TrustedPeople`，不会导入根证书、开启开发者模式或更改 TXT 默认打开方式。开发证书私钥不会随包分发。正式分发可以在构建时指定已有代码签名证书。移除菜单不会删除系统中的证书信任。
 
-注册时完整程序复制到 `%LOCALAPPDATA%\Programs\TextViewer\app-<内容摘要>`，避免便携版目录被移动后菜单失效。
+注册时完整程序及图标复制到 `%LOCALAPPDATA%\Programs\TextViewer\app-<内容摘要>`，避免便携版目录被移动后菜单失效。升级重新绑定到当前版本，并清理不再使用的旧程序副本；仍在使用、被占用或包含用户新增文件的目录会保留。
 
-安装包只尝试注册已经受信任的右键身份包，不会自动导入证书。CI 未配置持久发行签名证书时，每次构建会生成新的自签名，更新后启用右键可能需要再次确认信任。
+安装包不会自动导入证书。已注册的受信任稀疏身份可继续用于新版程序，程序版本以实际运行的 EXE 为准。首次启用或缺少可复用的受信任身份时，仍可能需要确认签名信任。
 
-Windows 11 26H2 自定义右键菜单时，添加操作会同时启用 TextViewer 的主菜单项。如果随后在系统“自定义菜单”中隐藏了 TextViewer，可在那里重新启用，或再次执行“添加到 Windows 11 新版右键菜单”。其他应用及系统菜单显示设置保持原样。
+Windows 11 26H2 自定义右键菜单时，启用操作会同时启用 TextViewer 的主菜单项。如果随后在系统“自定义菜单”中隐藏了 TextViewer，可在那里重新启用，或在应用设置中保持右键选项勾选并保存。其他应用及系统菜单显示设置保持原样。
 
 ### 在线更新
 
@@ -158,7 +160,7 @@ MyGo 构建会临时生成 `.syso` 资源文件，同一目录内不要并行执
 ### 发行安装包
 
 ```powershell
-.\scripts\build-release.ps1 -Tag v0.0.4 -BootstrapTools
+.\scripts\build-release.ps1 -Tag v0.0.5 -BootstrapTools
 
 # 在独立临时目录实测原生架构选择、版本和安装/卸载；不注册真实右键或更改证书信任
 $env:TEXTVIEWER_TEST_INSTALLER = '1'
@@ -166,13 +168,13 @@ go test ./cmd/release -run '^TestUniversalInstallerInstallsNativePayload$' -coun
 Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 ```
 
-输出到 `dist\release\v0.0.4`：
+输出到 `dist\release\v0.0.5`：
 
 | 文件 | 用途 |
 | --- | --- |
-| `TextViewer-Setup-0.0.4-windows.exe` | x64 / ARM64 合并安装包 |
-| `TextViewer-0.0.4-windows-amd64.zip` | x64 完整便携包 |
-| `TextViewer-0.0.4-windows-arm64.zip` | ARM64 完整便携包 |
+| `TextViewer-Setup-0.0.5-windows.exe` | x64 / ARM64 合并安装包 |
+| `TextViewer-0.0.5-windows-amd64.zip` | x64 完整便携包 |
+| `TextViewer-0.0.5-windows-arm64.zip` | ARM64 完整便携包 |
 | `SHA256SUMS.txt` | 三个公开产物的 SHA-256 |
 
 `.github/workflows/release.yml` 对 main / PR 执行测试、vet、依赖验证及独立注册表中的右键显示配置测试；推送 `vMAJOR.MINOR.PATCH` 标签时，从标签写入应用版本、EXE 版本和 MSIX 身份版本，再顺序编译双架构、运行原生右键测试与隔离安装验收，最后校验完整产物并发布正式 Release。不会覆盖已经正式发布的版本。
@@ -183,8 +185,8 @@ Remove-Item Env:\TEXTVIEWER_TEST_INSTALLER
 
 ```powershell
 $env:TEXTVIEWER_UPDATE_LIVE_CHECK = '1'
-$env:TEXTVIEWER_PREVIOUS_RELEASE = '0.0.3'
-$env:TEXTVIEWER_EXPECTED_RELEASE = '0.0.4'
+$env:TEXTVIEWER_PREVIOUS_RELEASE = '0.0.4'
+$env:TEXTVIEWER_EXPECTED_RELEASE = '0.0.5'
 go test ./internal/update -run '^TestGitHubReleaseUpdateIntegration$' -count=1 -v -timeout 240s
 Remove-Item Env:\TEXTVIEWER_UPDATE_LIVE_CHECK, Env:\TEXTVIEWER_PREVIOUS_RELEASE, Env:\TEXTVIEWER_EXPECTED_RELEASE
 ```
