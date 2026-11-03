@@ -38,12 +38,12 @@ func TestEditorTypingUndoRedo(t *testing.T) {
 }
 
 func TestCompactLayoutNoOverlap(t *testing.T) {
-	for _, width := range []int{760, 900, 1120} {
+	for _, width := range []int{760, 839, 840, 900, 1120} {
 		a := testApp()
 		a.findOpen, a.replacing = true, true
 		tester := ui.NewTester(a.view, width, 600)
 		for _, row := range [][]string{
-			{"文件", "打开", "保存", "另存为", "编辑", "查找", "替换", "自动换行", "字体", "字号", "代码格式", "设置"},
+			{"文件", "打开", "保存", "另存为", "编辑", "撤销", "重做", "查找", "替换", "自动换行", "字体", "字号", "代码格式", "设置"},
 			{"查找内容", "区分大小写", "正则", "转义字符", "上一处", "下一处", "关闭查找"},
 			{"替换内容", "全部替换"},
 		} {

@@ -318,7 +318,7 @@ func TestEditingMenuTranslationsLayoutAndPreview(t *testing.T) {
 					}
 					tester.CloseMenu()
 					var previous ui.Rect
-					for i, label := range []string{locales.File(), locales.Open(), locales.Save(), locales.SaveAs(), locales.Edit(), locales.Find(), locales.Replace(), locales.WordWrap(), locales.Font(), locales.FontSize(), locales.CodeFormat(), locales.Settings()} {
+					for i, label := range []string{locales.File(), locales.Open(), locales.Save(), locales.SaveAs(), locales.Edit(), locales.Undo(), locales.Redo(), locales.Find(), locales.Replace(), locales.WordWrap(), locales.Font(), locales.FontSize(), locales.CodeFormat(), locales.Settings()} {
 						rect, ok := tester.Find(label)
 						if !ok || rect.W <= 0 || rect.X < 0 || rect.X+rect.W > 760 || i > 0 && previous.X+previous.W > rect.X+0.5 {
 							t.Fatalf("%s scale %g: clipped or overlapping %q: %+v", tag, scale, label, rect)

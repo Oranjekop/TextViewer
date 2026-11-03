@@ -5,6 +5,7 @@ import (
 
 	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 )
 
 //go:embed icons/*.svg
@@ -13,7 +14,7 @@ var toolbarSVG embed.FS
 var toolbarIcons = loadToolbarIcons()
 
 func loadToolbarIcons() map[string]*ui.SVG {
-	names := []string{"file", "open", "save", "save-as", "edit", "find", "replace", "wrap", "font", "code", "settings", "chevron-down", "close", "plus"}
+	names := []string{"file", "open", "save", "save-as", "edit", "undo", "redo", "find", "replace", "wrap", "font", "code", "settings", "chevron-down", "close", "plus"}
 	icons := make(map[string]*ui.SVG, len(names))
 	for _, name := range names {
 		data, err := toolbarSVG.ReadFile("icons/" + name + ".svg")
@@ -47,6 +48,11 @@ func dropdownButton(c *ui.Context, text, label, tip string) ui.Element {
 
 func (a *App) toolbar(c *ui.Context) {
 	t := c.Theme()
+	width, _ := c.Size()
+	gap := float32(6)
+	if width < 840 {
+		gap = 2
+	}
 	ui.Toolbar(c, func() {
 		ui.Button(c.Key("file"), "").Size(50, 34).MinWidth(50).Padding(0, 6).Gap(4).
 			Label(locales.File()).Tooltip(locales.File()).Children(func() {
@@ -67,6 +73,15 @@ func (a *App) toolbar(c *ui.Context) {
 			ui.Icon(c, toolbarIcons["edit"]).Size(20, 20)
 			ui.Icon(c, toolbarIcons["chevron-down"]).Size(12, 12).TextColor(t.TextMuted)
 		}).Menu(a.editingMenu)
+		locked := a.busy != nil || a.confirming
+		if iconButton(c, "undo", locales.Undo(), locales.Undo()+" (Ctrl+Z)", false).
+			Disabled(locked || !a.doc.Buffer.CanUndo()).Clicked() {
+			a.runEditorCommand(editor.Undo)
+		}
+		if iconButton(c, "redo", locales.Redo(), locales.Redo()+" (Ctrl+Y)", false).
+			Disabled(locked || !a.doc.Buffer.CanRedo()).Clicked() {
+			a.runEditorCommand(editor.Redo)
+		}
 		ui.Box(c).Width(1).Height(20).Margin(0, 4).Background(t.Border)
 		if iconButton(c, "find", locales.Find(), locales.Find()+" (Ctrl+F)", a.findOpen && !a.replacing).Clicked() {
 			a.showFind(false)
@@ -101,5 +116,5 @@ func (a *App) toolbar(c *ui.Context) {
 		if iconButton(c, "settings", locales.Settings(), locales.Settings(), false).Disabled(a.busy != nil).Clicked() {
 			a.chooseSettings()
 		}
-	}).FillWidth().Height(54).Padding(10, 14).Gap(6).Background(t.Surface).Label(locales.Toolbar())
+	}).FillWidth().Height(54).Padding(10, 14).Gap(gap).Background(t.Surface).Label(locales.Toolbar())
 }

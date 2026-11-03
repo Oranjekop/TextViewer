@@ -4,12 +4,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Oranjekop/TextViewer/internal/document"
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
 
 func TestToolbarIconsAreValidSVGs(t *testing.T) {
-	if len(toolbarIcons) != 14 {
+	if len(toolbarIcons) != 16 {
 		t.Fatalf("got %d icons", len(toolbarIcons))
 	}
 	for name, icon := range toolbarIcons {
@@ -29,6 +31,75 @@ func TestToolbarIconsAreValidSVGs(t *testing.T) {
 		if !drawn {
 			t.Fatalf("%s rendered no visible strokes", name)
 		}
+	}
+}
+
+func TestToolbarUndoRedoTracksDocumentHistory(t *testing.T) {
+	a := testApp()
+	tester := ui.NewTester(a.view, 760, 600)
+	click := func(label string) {
+		t.Helper()
+		if err := tester.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	click(locales.Undo())
+	click(locales.Redo())
+	if a.doc.Buffer.CanUndo() || a.doc.Buffer.CanRedo() || a.doc.Buffer.String() != "" {
+		t.Fatal("empty history buttons changed the document")
+	}
+	click(locales.EditorArea())
+	tester.Type("中文😀")
+	if a.doc.Buffer.String() != "中文😀" {
+		t.Fatalf("typing fixture: %q", a.doc.Buffer.String())
+	}
+	click(locales.Undo())
+	if a.doc.Buffer.String() != "" || !tester.Focused(locales.EditorArea()) {
+		t.Fatalf("toolbar undo: text=%q, editor focused=%v", a.doc.Buffer.String(), tester.Focused(locales.EditorArea()))
+	}
+	click(locales.Redo())
+	if a.doc.Buffer.String() != "中文😀" || !tester.Focused(locales.EditorArea()) {
+		t.Fatal("toolbar redo did not restore the edit and editor focus")
+	}
+	click(locales.Undo())
+	tester.Type("new edit")
+	click(locales.Redo())
+	if a.doc.Buffer.String() != "new edit" || a.doc.Buffer.CanRedo() {
+		t.Fatal("new editing did not discard the old redo branch")
+	}
+	first := a.documentTab
+	a.addDocument(document.New())
+	second := a.documentTab
+	tester.Frame()
+	click(locales.Undo())
+	click(locales.Redo())
+	if second.doc.Buffer.String() != "" || first.doc.Buffer.String() != "new edit" {
+		t.Fatal("empty tab used another tab's history")
+	}
+	a.activateTab(first)
+	tester.Frame()
+	for _, confirming := range []bool{false, true} {
+		a.confirming = confirming
+		if !confirming {
+			a.busy = locales.EditingText
+		} else {
+			a.busy = nil
+		}
+		tester.Frame()
+		click(locales.Undo())
+		if first.doc.Buffer.String() != "new edit" {
+			t.Fatal("locked toolbar accepted undo")
+		}
+	}
+	a.confirming, a.busy = false, nil
+	tester.Frame()
+	click(locales.Undo())
+	if first.doc.Buffer.String() != "" || second.doc.Buffer.String() != "" {
+		t.Fatal("switching tabs did not restore the active document history")
+	}
+	click(locales.Redo())
+	if first.doc.Buffer.String() != "new edit" || second.doc.Buffer.String() != "" {
+		t.Fatal("redo changed the inactive document")
 	}
 }
 
