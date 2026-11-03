@@ -1637,3 +1637,533 @@ func FontPreview() string { return In(i18n.Locale()).FontPreview() }
 func (msgs Messages) FontPreview() string {
 	return Catalog.Format(msgs.locale, "fontPreview", nil)
 }
+
+// Edit says "编辑"
+// in the language the app shows.
+func Edit() string { return In(i18n.Locale()).Edit() }
+
+// Edit says "编辑"
+// in the language of msgs.
+func (msgs Messages) Edit() string {
+	return Catalog.Format(msgs.locale, "edit", nil)
+}
+
+// Cut says "剪切"
+// in the language the app shows.
+func Cut() string { return In(i18n.Locale()).Cut() }
+
+// Cut says "剪切"
+// in the language of msgs.
+func (msgs Messages) Cut() string {
+	return Catalog.Format(msgs.locale, "cut", nil)
+}
+
+// Copy says "复制"
+// in the language the app shows.
+func Copy() string { return In(i18n.Locale()).Copy() }
+
+// Copy says "复制"
+// in the language of msgs.
+func (msgs Messages) Copy() string {
+	return Catalog.Format(msgs.locale, "copy", nil)
+}
+
+// Paste says "粘贴"
+// in the language the app shows.
+func Paste() string { return In(i18n.Locale()).Paste() }
+
+// Paste says "粘贴"
+// in the language of msgs.
+func (msgs Messages) Paste() string {
+	return Catalog.Format(msgs.locale, "paste", nil)
+}
+
+// Delete says "删除"
+// in the language the app shows.
+func Delete() string { return In(i18n.Locale()).Delete() }
+
+// Delete says "删除"
+// in the language of msgs.
+func (msgs Messages) Delete() string {
+	return Catalog.Format(msgs.locale, "delete", nil)
+}
+
+// SelectAll says "全选"
+// in the language the app shows.
+func SelectAll() string { return In(i18n.Locale()).SelectAll() }
+
+// SelectAll says "全选"
+// in the language of msgs.
+func (msgs Messages) SelectAll() string {
+	return Catalog.Format(msgs.locale, "selectAll", nil)
+}
+
+// Selection says "选择"
+// in the language the app shows.
+func Selection() string { return In(i18n.Locale()).Selection() }
+
+// Selection says "选择"
+// in the language of msgs.
+func (msgs Messages) Selection() string {
+	return Catalog.Format(msgs.locale, "selection", nil)
+}
+
+// SelectLine says "选择当前行"
+// in the language the app shows.
+func SelectLine() string { return In(i18n.Locale()).SelectLine() }
+
+// SelectLine says "选择当前行"
+// in the language of msgs.
+func (msgs Messages) SelectLine() string {
+	return Catalog.Format(msgs.locale, "selectLine", nil)
+}
+
+// SelectNextOccurrence says "选择下一个匹配项"
+// in the language the app shows.
+func SelectNextOccurrence() string { return In(i18n.Locale()).SelectNextOccurrence() }
+
+// SelectNextOccurrence says "选择下一个匹配项"
+// in the language of msgs.
+func (msgs Messages) SelectNextOccurrence() string {
+	return Catalog.Format(msgs.locale, "selectNextOccurrence", nil)
+}
+
+// SelectAllOccurrences says "选择所有匹配项"
+// in the language the app shows.
+func SelectAllOccurrences() string { return In(i18n.Locale()).SelectAllOccurrences() }
+
+// SelectAllOccurrences says "选择所有匹配项"
+// in the language of msgs.
+func (msgs Messages) SelectAllOccurrences() string {
+	return Catalog.Format(msgs.locale, "selectAllOccurrences", nil)
+}
+
+// ExpandSelection says "扩大选择范围"
+// in the language the app shows.
+func ExpandSelection() string { return In(i18n.Locale()).ExpandSelection() }
+
+// ExpandSelection says "扩大选择范围"
+// in the language of msgs.
+func (msgs Messages) ExpandSelection() string {
+	return Catalog.Format(msgs.locale, "expandSelection", nil)
+}
+
+// ShrinkSelection says "缩小选择范围"
+// in the language the app shows.
+func ShrinkSelection() string { return In(i18n.Locale()).ShrinkSelection() }
+
+// ShrinkSelection says "缩小选择范围"
+// in the language of msgs.
+func (msgs Messages) ShrinkSelection() string {
+	return Catalog.Format(msgs.locale, "shrinkSelection", nil)
+}
+
+// AddCursorAbove says "在上方添加光标"
+// in the language the app shows.
+func AddCursorAbove() string { return In(i18n.Locale()).AddCursorAbove() }
+
+// AddCursorAbove says "在上方添加光标"
+// in the language of msgs.
+func (msgs Messages) AddCursorAbove() string {
+	return Catalog.Format(msgs.locale, "addCursorAbove", nil)
+}
+
+// AddCursorBelow says "在下方添加光标"
+// in the language the app shows.
+func AddCursorBelow() string { return In(i18n.Locale()).AddCursorBelow() }
+
+// AddCursorBelow says "在下方添加光标"
+// in the language of msgs.
+func (msgs Messages) AddCursorBelow() string {
+	return Catalog.Format(msgs.locale, "addCursorBelow", nil)
+}
+
+// SplitIntoLines says "按行拆分选择"
+// in the language the app shows.
+func SplitIntoLines() string { return In(i18n.Locale()).SplitIntoLines() }
+
+// SplitIntoLines says "按行拆分选择"
+// in the language of msgs.
+func (msgs Messages) SplitIntoLines() string {
+	return Catalog.Format(msgs.locale, "splitIntoLines", nil)
+}
+
+// LineOperations says "行操作"
+// in the language the app shows.
+func LineOperations() string { return In(i18n.Locale()).LineOperations() }
+
+// LineOperations says "行操作"
+// in the language of msgs.
+func (msgs Messages) LineOperations() string {
+	return Catalog.Format(msgs.locale, "lineOperations", nil)
+}
+
+// DuplicateLine says "复制当前行或所选行"
+// in the language the app shows.
+func DuplicateLine() string { return In(i18n.Locale()).DuplicateLine() }
+
+// DuplicateLine says "复制当前行或所选行"
+// in the language of msgs.
+func (msgs Messages) DuplicateLine() string {
+	return Catalog.Format(msgs.locale, "duplicateLine", nil)
+}
+
+// DeleteLine says "删除当前行或所选行"
+// in the language the app shows.
+func DeleteLine() string { return In(i18n.Locale()).DeleteLine() }
+
+// DeleteLine says "删除当前行或所选行"
+// in the language of msgs.
+func (msgs Messages) DeleteLine() string {
+	return Catalog.Format(msgs.locale, "deleteLine", nil)
+}
+
+// MoveLineUp says "上移一行"
+// in the language the app shows.
+func MoveLineUp() string { return In(i18n.Locale()).MoveLineUp() }
+
+// MoveLineUp says "上移一行"
+// in the language of msgs.
+func (msgs Messages) MoveLineUp() string {
+	return Catalog.Format(msgs.locale, "moveLineUp", nil)
+}
+
+// MoveLineDown says "下移一行"
+// in the language the app shows.
+func MoveLineDown() string { return In(i18n.Locale()).MoveLineDown() }
+
+// MoveLineDown says "下移一行"
+// in the language of msgs.
+func (msgs Messages) MoveLineDown() string {
+	return Catalog.Format(msgs.locale, "moveLineDown", nil)
+}
+
+// InsertLineAbove says "在上方插入空行"
+// in the language the app shows.
+func InsertLineAbove() string { return In(i18n.Locale()).InsertLineAbove() }
+
+// InsertLineAbove says "在上方插入空行"
+// in the language of msgs.
+func (msgs Messages) InsertLineAbove() string {
+	return Catalog.Format(msgs.locale, "insertLineAbove", nil)
+}
+
+// InsertLineBelow says "在下方插入空行"
+// in the language the app shows.
+func InsertLineBelow() string { return In(i18n.Locale()).InsertLineBelow() }
+
+// InsertLineBelow says "在下方插入空行"
+// in the language of msgs.
+func (msgs Messages) InsertLineBelow() string {
+	return Catalog.Format(msgs.locale, "insertLineBelow", nil)
+}
+
+// JoinLines says "合并行"
+// in the language the app shows.
+func JoinLines() string { return In(i18n.Locale()).JoinLines() }
+
+// JoinLines says "合并行"
+// in the language of msgs.
+func (msgs Messages) JoinLines() string {
+	return Catalog.Format(msgs.locale, "joinLines", nil)
+}
+
+// Indent says "增加缩进"
+// in the language the app shows.
+func Indent() string { return In(i18n.Locale()).Indent() }
+
+// Indent says "增加缩进"
+// in the language of msgs.
+func (msgs Messages) Indent() string {
+	return Catalog.Format(msgs.locale, "indent", nil)
+}
+
+// Outdent says "减少缩进"
+// in the language the app shows.
+func Outdent() string { return In(i18n.Locale()).Outdent() }
+
+// Outdent says "减少缩进"
+// in the language of msgs.
+func (msgs Messages) Outdent() string {
+	return Catalog.Format(msgs.locale, "outdent", nil)
+}
+
+// SortAscending says "按升序排列行"
+// in the language the app shows.
+func SortAscending() string { return In(i18n.Locale()).SortAscending() }
+
+// SortAscending says "按升序排列行"
+// in the language of msgs.
+func (msgs Messages) SortAscending() string {
+	return Catalog.Format(msgs.locale, "sortAscending", nil)
+}
+
+// SortDescending says "按降序排列行"
+// in the language the app shows.
+func SortDescending() string { return In(i18n.Locale()).SortDescending() }
+
+// SortDescending says "按降序排列行"
+// in the language of msgs.
+func (msgs Messages) SortDescending() string {
+	return Catalog.Format(msgs.locale, "sortDescending", nil)
+}
+
+// SortIgnoreCase says "忽略大小写排列行"
+// in the language the app shows.
+func SortIgnoreCase() string { return In(i18n.Locale()).SortIgnoreCase() }
+
+// SortIgnoreCase says "忽略大小写排列行"
+// in the language of msgs.
+func (msgs Messages) SortIgnoreCase() string {
+	return Catalog.Format(msgs.locale, "sortIgnoreCase", nil)
+}
+
+// ReverseLines says "反转行序"
+// in the language the app shows.
+func ReverseLines() string { return In(i18n.Locale()).ReverseLines() }
+
+// ReverseLines says "反转行序"
+// in the language of msgs.
+func (msgs Messages) ReverseLines() string {
+	return Catalog.Format(msgs.locale, "reverseLines", nil)
+}
+
+// UniqueLines says "删除重复行"
+// in the language the app shows.
+func UniqueLines() string { return In(i18n.Locale()).UniqueLines() }
+
+// UniqueLines says "删除重复行"
+// in the language of msgs.
+func (msgs Messages) UniqueLines() string {
+	return Catalog.Format(msgs.locale, "uniqueLines", nil)
+}
+
+// WhitespaceOperations says "空白处理"
+// in the language the app shows.
+func WhitespaceOperations() string { return In(i18n.Locale()).WhitespaceOperations() }
+
+// WhitespaceOperations says "空白处理"
+// in the language of msgs.
+func (msgs Messages) WhitespaceOperations() string {
+	return Catalog.Format(msgs.locale, "whitespaceOperations", nil)
+}
+
+// TrimLeading says "移除行首空白"
+// in the language the app shows.
+func TrimLeading() string { return In(i18n.Locale()).TrimLeading() }
+
+// TrimLeading says "移除行首空白"
+// in the language of msgs.
+func (msgs Messages) TrimLeading() string {
+	return Catalog.Format(msgs.locale, "trimLeading", nil)
+}
+
+// TrimTrailing says "移除行尾空白"
+// in the language the app shows.
+func TrimTrailing() string { return In(i18n.Locale()).TrimTrailing() }
+
+// TrimTrailing says "移除行尾空白"
+// in the language of msgs.
+func (msgs Messages) TrimTrailing() string {
+	return Catalog.Format(msgs.locale, "trimTrailing", nil)
+}
+
+// TrimBoth says "移除行首和行尾空白"
+// in the language the app shows.
+func TrimBoth() string { return In(i18n.Locale()).TrimBoth() }
+
+// TrimBoth says "移除行首和行尾空白"
+// in the language of msgs.
+func (msgs Messages) TrimBoth() string {
+	return Catalog.Format(msgs.locale, "trimBoth", nil)
+}
+
+// RemoveEmptyLines says "删除空行"
+// in the language the app shows.
+func RemoveEmptyLines() string { return In(i18n.Locale()).RemoveEmptyLines() }
+
+// RemoveEmptyLines says "删除空行"
+// in the language of msgs.
+func (msgs Messages) RemoveEmptyLines() string {
+	return Catalog.Format(msgs.locale, "removeEmptyLines", nil)
+}
+
+// RemoveBlankLines says "删除空行和仅含空白的行"
+// in the language the app shows.
+func RemoveBlankLines() string { return In(i18n.Locale()).RemoveBlankLines() }
+
+// RemoveBlankLines says "删除空行和仅含空白的行"
+// in the language of msgs.
+func (msgs Messages) RemoveBlankLines() string {
+	return Catalog.Format(msgs.locale, "removeBlankLines", nil)
+}
+
+// TabsToSpaces says "制表符转为空格"
+// in the language the app shows.
+func TabsToSpaces() string { return In(i18n.Locale()).TabsToSpaces() }
+
+// TabsToSpaces says "制表符转为空格"
+// in the language of msgs.
+func (msgs Messages) TabsToSpaces() string {
+	return Catalog.Format(msgs.locale, "tabsToSpaces", nil)
+}
+
+// LeadingSpacesToTabs says "行首空格转为制表符"
+// in the language the app shows.
+func LeadingSpacesToTabs() string { return In(i18n.Locale()).LeadingSpacesToTabs() }
+
+// LeadingSpacesToTabs says "行首空格转为制表符"
+// in the language of msgs.
+func (msgs Messages) LeadingSpacesToTabs() string {
+	return Catalog.Format(msgs.locale, "leadingSpacesToTabs", nil)
+}
+
+// Transform says "转换"
+// in the language the app shows.
+func Transform() string { return In(i18n.Locale()).Transform() }
+
+// Transform says "转换"
+// in the language of msgs.
+func (msgs Messages) Transform() string {
+	return Catalog.Format(msgs.locale, "transform", nil)
+}
+
+// UpperCase says "转为大写"
+// in the language the app shows.
+func UpperCase() string { return In(i18n.Locale()).UpperCase() }
+
+// UpperCase says "转为大写"
+// in the language of msgs.
+func (msgs Messages) UpperCase() string {
+	return Catalog.Format(msgs.locale, "upperCase", nil)
+}
+
+// LowerCase says "转为小写"
+// in the language the app shows.
+func LowerCase() string { return In(i18n.Locale()).LowerCase() }
+
+// LowerCase says "转为小写"
+// in the language of msgs.
+func (msgs Messages) LowerCase() string {
+	return Catalog.Format(msgs.locale, "lowerCase", nil)
+}
+
+// TitleCase says "单词首字母大写"
+// in the language the app shows.
+func TitleCase() string { return In(i18n.Locale()).TitleCase() }
+
+// TitleCase says "单词首字母大写"
+// in the language of msgs.
+func (msgs Messages) TitleCase() string {
+	return Catalog.Format(msgs.locale, "titleCase", nil)
+}
+
+// SnakeCase says "转为 snake_case"
+// in the language the app shows.
+func SnakeCase() string { return In(i18n.Locale()).SnakeCase() }
+
+// SnakeCase says "转为 snake_case"
+// in the language of msgs.
+func (msgs Messages) SnakeCase() string {
+	return Catalog.Format(msgs.locale, "snakeCase", nil)
+}
+
+// KebabCase says "转为 kebab-case"
+// in the language the app shows.
+func KebabCase() string { return In(i18n.Locale()).KebabCase() }
+
+// KebabCase says "转为 kebab-case"
+// in the language of msgs.
+func (msgs Messages) KebabCase() string {
+	return Catalog.Format(msgs.locale, "kebabCase", nil)
+}
+
+// CamelCase says "转为 camelCase"
+// in the language the app shows.
+func CamelCase() string { return In(i18n.Locale()).CamelCase() }
+
+// CamelCase says "转为 camelCase"
+// in the language of msgs.
+func (msgs Messages) CamelCase() string {
+	return Catalog.Format(msgs.locale, "camelCase", nil)
+}
+
+// PascalCase says "转为 PascalCase"
+// in the language the app shows.
+func PascalCase() string { return In(i18n.Locale()).PascalCase() }
+
+// PascalCase says "转为 PascalCase"
+// in the language of msgs.
+func (msgs Messages) PascalCase() string {
+	return Catalog.Format(msgs.locale, "pascalCase", nil)
+}
+
+// ToggleComment says "切换注释"
+// in the language the app shows.
+func ToggleComment() string { return In(i18n.Locale()).ToggleComment() }
+
+// ToggleComment says "切换注释"
+// in the language of msgs.
+func (msgs Messages) ToggleComment() string {
+	return Catalog.Format(msgs.locale, "toggleComment", nil)
+}
+
+// ToggleBlockComment says "切换块注释"
+// in the language the app shows.
+func ToggleBlockComment() string { return In(i18n.Locale()).ToggleBlockComment() }
+
+// ToggleBlockComment says "切换块注释"
+// in the language of msgs.
+func (msgs Messages) ToggleBlockComment() string {
+	return Catalog.Format(msgs.locale, "toggleBlockComment", nil)
+}
+
+// GoToLine says "转到行…"
+// in the language the app shows.
+func GoToLine() string { return In(i18n.Locale()).GoToLine() }
+
+// GoToLine says "转到行…"
+// in the language of msgs.
+func (msgs Messages) GoToLine() string {
+	return Catalog.Format(msgs.locale, "goToLine", nil)
+}
+
+// EditingText says "正在处理文本…"
+// in the language the app shows.
+func EditingText() string { return In(i18n.Locale()).EditingText() }
+
+// EditingText says "正在处理文本…"
+// in the language of msgs.
+func (msgs Messages) EditingText() string {
+	return Catalog.Format(msgs.locale, "editingText", nil)
+}
+
+// ApplyingEdits says "正在应用编辑…"
+// in the language the app shows.
+func ApplyingEdits() string { return In(i18n.Locale()).ApplyingEdits() }
+
+// ApplyingEdits says "正在应用编辑…"
+// in the language of msgs.
+func (msgs Messages) ApplyingEdits() string {
+	return Catalog.Format(msgs.locale, "applyingEdits", nil)
+}
+
+// EditTextChanged says "文本已改变，请重新执行编辑操作"
+// in the language the app shows.
+func EditTextChanged() string { return In(i18n.Locale()).EditTextChanged() }
+
+// EditTextChanged says "文本已改变，请重新执行编辑操作"
+// in the language of msgs.
+func (msgs Messages) EditTextChanged() string {
+	return Catalog.Format(msgs.locale, "editTextChanged", nil)
+}
+
+// InvertCase says "反转所选文本大小写"
+// in the language the app shows.
+func InvertCase() string { return In(i18n.Locale()).InvertCase() }
+
+// InvertCase says "反转所选文本大小写"
+// in the language of msgs.
+func (msgs Messages) InvertCase() string {
+	return Catalog.Format(msgs.locale, "invertCase", nil)
+}

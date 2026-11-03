@@ -13,7 +13,7 @@ var toolbarSVG embed.FS
 var toolbarIcons = loadToolbarIcons()
 
 func loadToolbarIcons() map[string]*ui.SVG {
-	names := []string{"file", "open", "save", "save-as", "find", "replace", "wrap", "font", "code", "settings", "chevron-down", "close", "plus"}
+	names := []string{"file", "open", "save", "save-as", "edit", "find", "replace", "wrap", "font", "code", "settings", "chevron-down", "close", "plus"}
 	icons := make(map[string]*ui.SVG, len(names))
 	for _, name := range names {
 		data, err := toolbarSVG.ReadFile("icons/" + name + ".svg")
@@ -62,6 +62,11 @@ func (a *App) toolbar(c *ui.Context) {
 		if iconButton(c, "save-as", locales.SaveAs(), locales.SaveAs()+" (Ctrl+Shift+S)", false).Disabled(a.busy != nil).Clicked() {
 			a.save(true, nil)
 		}
+		ui.Button(c.Key("edit"), "").Size(50, 34).MinWidth(50).Padding(0, 6).Gap(4).
+			Label(locales.Edit()).Tooltip(locales.Edit()).Disabled(a.busy != nil).Children(func() {
+			ui.Icon(c, toolbarIcons["edit"]).Size(20, 20)
+			ui.Icon(c, toolbarIcons["chevron-down"]).Size(12, 12).TextColor(t.TextMuted)
+		}).Menu(a.editingMenu)
 		ui.Box(c).Width(1).Height(20).Margin(0, 4).Background(t.Border)
 		if iconButton(c, "find", locales.Find(), locales.Find()+" (Ctrl+F)", a.findOpen && !a.replacing).Clicked() {
 			a.showFind(false)
