@@ -11,6 +11,7 @@ import (
 
 	"github.com/Oranjekop/TextViewer/internal/filetypes"
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
+	"github.com/Oranjekop/TextViewer/locales"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -132,11 +133,11 @@ func readState(root registry.Key) (registrationState, error) {
 
 func register(root registry.Key, dir, source string) error {
 	if !filepath.IsAbs(dir) || !filepath.IsAbs(source) || strings.ContainsAny(dir, "\"\r\n") {
-		return errors.New("文件关联需要有效的程序绝对路径")
+		return locales.NewError(locales.InvalidProgramPath)
 	}
 	exe := filepath.Join(dir, "TextViewer.exe")
 	if info, err := os.Stat(exe); err != nil || !info.Mode().IsRegular() {
-		return fmt.Errorf("找不到 TextViewer 程序：%s", exe)
+		return locales.NewError(func() string { return locales.ProgramNotFound(exe) })
 	}
 	if err := writeIcons(dir); err != nil {
 		return err

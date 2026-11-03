@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"strings"
 
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui/editor"
 )
 
@@ -23,7 +22,7 @@ func FormatJSON(ctx context.Context, snapshot editor.Snapshot) (string, bool, er
 		return "", false, err
 	}
 	if snapshot.Len() > maxJSONInputBytes {
-		return "", false, errors.New("JSON 格式化支持不超过 128 MiB 的文本")
+		return "", false, locales.NewError(locales.JsonInputTooLarge)
 	}
 	input := make([]byte, 0, snapshot.Len())
 	snapshot.Chunks(0, snapshot.Len(), func(chunk string) bool {
@@ -39,7 +38,7 @@ func FormatJSON(ctx context.Context, snapshot editor.Snapshot) (string, bool, er
 	if !json.Valid(input) {
 		var raw json.RawMessage
 		err := json.Unmarshal(input, &raw)
-		return "", false, fmt.Errorf("JSON 格式错误：%w", err)
+		return "", false, locales.WrapError(err, locales.InvalidJSON)
 	}
 	size, err := jsonOutputBound(ctx, input)
 	if err != nil {
@@ -160,7 +159,7 @@ func jsonOutputBound(ctx context.Context, input []byte) (int, error) {
 			size++
 		}
 		if size > maxJSONOutputBytes {
-			return 0, errors.New("JSON 缩进后的文本过大（上限 256 MiB），请减少嵌套或拆分文件")
+			return 0, locales.NewError(locales.JsonOutputTooLarge)
 		}
 	}
 	return size, ctx.Err()

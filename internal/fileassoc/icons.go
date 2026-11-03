@@ -3,11 +3,11 @@ package fileassoc
 import (
 	"bytes"
 	"embed"
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/Oranjekop/TextViewer/internal/filetypes"
+	"github.com/Oranjekop/TextViewer/locales"
 )
 
 //go:embed icons/*.ico
@@ -23,7 +23,7 @@ func writeIcons(dir string) error {
 		existing, err := os.ReadFile(path)
 		if err == nil {
 			if !bytes.Equal(existing, data) {
-				return fmt.Errorf("文件图标与当前版本不一致：%s", path)
+				return locales.NewError(func() string { return locales.FileIconMismatch(path) })
 			}
 			continue
 		}

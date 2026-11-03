@@ -5,8 +5,6 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/hex"
-	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,9 +14,10 @@ import (
 	"time"
 
 	"github.com/Oranjekop/TextViewer/internal/shellbundle"
+	"github.com/Oranjekop/TextViewer/locales"
 )
 
-var ErrTrustRequired = errors.New("需要先信任 TextViewer 的本机签名")
+var ErrTrustRequired = locales.NewError(locales.SignatureTrustRequired)
 
 var preparedBundle = sync.OnceValues(func() (string, error) {
 	exe, err := os.Executable()
@@ -59,7 +58,7 @@ func run(action string, extra ...string) (string, error) {
 		if strings.Contains(string(out), "TEXTVIEWER_CERTIFICATE_TRUST_REQUIRED") {
 			return "", ErrTrustRequired
 		}
-		return "", fmt.Errorf("Windows 集成设置失败：%s", strings.TrimSpace(string(out)))
+		return "", locales.NewError(func() string { return locales.WindowsIntegrationFailed(strings.TrimSpace(string(out))) })
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -92,7 +91,7 @@ func TrustAndInstall() error {
 		return err
 	}
 	if certificate.IsCA {
-		return errors.New("不允许信任根证书")
+		return locales.NewError(locales.CannotTrustRoot)
 	}
 	digest := sha1.Sum(certificate.Raw)
 	if _, err = run("Trust", "-ExpectedThumbprint", strings.ToUpper(hex.EncodeToString(digest[:]))); err != nil {

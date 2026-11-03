@@ -13,6 +13,7 @@ import (
 	"github.com/Oranjekop/TextViewer/internal/document"
 	"github.com/Oranjekop/TextViewer/internal/filetypes"
 	"github.com/Oranjekop/TextViewer/internal/update"
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
@@ -32,13 +33,14 @@ type App struct {
 	queryInput         ui.Handle
 	fontDialog         bool
 	fontDraft          string
+	fontInput          string
 	fontOptions        []string
 	settingsDialog     bool
 	settingsDraft      settingsDraft
 	settingsLoading    bool
 	settingsReadFailed bool
 	settingsLoadID     uint64
-	settingsError      string
+	settingsError      locales.Message
 	integration        integrationBackend
 	fontSize           string
 	wrap               bool
@@ -47,8 +49,10 @@ type App struct {
 	query              string
 	replacement        string
 	caseSensitive      bool
-	status             string
-	busy               string
+	regex              bool
+	escapeSequences    bool
+	status             locales.Message
+	busy               locales.Message
 	job                uint64
 	cancel             context.CancelFunc
 	cancellable        bool
@@ -62,11 +66,12 @@ type App struct {
 	updateClient       updateService
 	updateCancel       context.CancelFunc
 	updateChecking     bool
-	updateMessage      string
+	updateMessage      locales.Message
 	updateFailed       bool
 	updatePending      bool
 	availableUpdate    *update.Release
 	updateInstaller    *update.Installer
+	setLocale          func(string)
 }
 
 func New() *App {
@@ -80,6 +85,7 @@ func New() *App {
 }
 
 func (a *App) resetEditor() {
+	a.clearSearchResult()
 	a.language = languageAuto
 	a.applyLanguage()
 	a.state = &editor.State{
@@ -90,7 +96,7 @@ func (a *App) resetEditor() {
 		NoIndentGuides:  true,
 		NoScrollPastEnd: true,
 		Whitespace:      editor.WhitespaceNone,
-		Label:           "文本编辑区",
+		Label:           locales.EditorArea(),
 		ContextMenu:     a.editMenu,
 		Bindings: []editor.Binding{
 			{Mods: ui.Ctrl, Key: ui.KeyF, Command: editor.NoCommand},
@@ -103,6 +109,12 @@ func (a *App) resetEditor() {
 }
 
 func (a *App) Ready() error {
+	// Declare the fallback independently of the catalog's authoring language.
+	mygo.App.SetLanguages("en", "zh-Hans")
+	a.setLocale = mygo.App.SetLocale
+	a.applyStartupLocale()
+	a.refreshLocale()
+	offLocale := mygo.App.OnLocaleChanged(func(string) { a.refreshLocale() })
 	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{}))
 	a.Win = mygo.NewWindow(mygo.WindowOptions{
 		Title: "TextViewer",
@@ -119,9 +131,9 @@ func (a *App) Ready() error {
 			e.PreventDefault()
 			return
 		}
-		if a.busy != "" {
+		if a.busy != nil {
 			e.PreventDefault()
-			a.status = "操作尚未完成，可以先取消"
+			a.status = locales.OperationInProgress
 			a.Win.Invalidate()
 			return
 		}
@@ -131,6 +143,7 @@ func (a *App) Ready() error {
 		}
 	})
 	a.Win.OnClosed(func() {
+		offLocale()
 		a.closed = true
 		a.stopJob()
 		a.stopUpdateCheck()
@@ -184,7 +197,7 @@ func (a *App) view(c *ui.Context) {
 		a.state.Font = ui.Font{Family: a.editorFont(), Size: float32(fontSize)}
 		a.state.NoIndentGuides = a.doc.Buffer.Language() == nil
 		a.state.SoftWrap = a.wrap
-		a.state.ReadOnly = a.busy != ""
+		a.state.ReadOnly = a.busy != nil
 		in := editor.View(c.Key(fmt.Sprintf("document-%d", a.documentTab.id)), a.state).Fill().Bind(&a.editor)
 		if a.pendingFocus {
 			in.Focus()
@@ -193,31 +206,32 @@ func (a *App) view(c *ui.Context) {
 		ui.Divider(c)
 		ui.Row(c).Height(30).Padding(0, 14).Gap(18).AlignItems(ui.Center).Background(t.Surface).Children(func() {
 			status := a.status
-			if a.busy != "" {
+			if a.busy != nil {
 				status = a.busy
 			}
-			if status != "" {
-				ui.Text(c, status).FontSize(12).TextColor(t.TextMuted).Grow(1)
+			if status != nil {
+				text := status.String()
+				ui.Text(c, text).FontSize(12).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine().Tooltip(text)
 			} else {
-				ui.Text(c, fmt.Sprintf("%s  ·  %s 行", formatSize(a.doc.Buffer.Len()), formatNumber(a.doc.Buffer.LineCount()))).FontSize(12).TextColor(t.TextMuted).Grow(1)
+				ui.Text(c, locales.DocumentStats(formatSize(a.doc.Buffer.Len()), a.doc.Buffer.LineCount())).FontSize(12).TextColor(t.TextMuted).Grow(1)
 			}
-			if a.busy != "" && a.cancellable {
-				if ui.Button(c, "取消").Height(24).Clicked() && a.cancel != nil {
+			if a.busy != nil && a.cancellable {
+				if ui.Button(c, locales.Cancel()).Height(24).Clicked() && a.cancel != nil {
 					a.cancel()
 				}
 			}
 			pos := a.state.CursorPos()
 			snapshot := a.doc.Buffer.Snapshot()
 			column := a.column.at(snapshot, a.state.Cursor())
-			ui.Text(c, fmt.Sprintf("行 %s，列 %s", formatNumber(pos.Line+1), formatNumber(column))).FontSize(12).TextColor(t.TextMuted)
-			dropdownButton(c.Key("encoding"), string(a.doc.Encoding), "编码", "以所选编码保存").
-				Disabled(a.busy != "").Menu(a.encodingMenu)
+			ui.Text(c, locales.CursorPosition(formatNumber(pos.Line+1), formatNumber(column))).FontSize(12).TextColor(t.TextMuted)
+			dropdownButton(c.Key("encoding"), string(a.doc.Encoding), locales.Encoding(), locales.EncodingTip()).
+				Disabled(a.busy != nil).Menu(a.encodingMenu)
 			ending := "LF"
 			if a.doc.Buffer.LineEnding() == "\r\n" {
 				ending = "CRLF"
 			}
-			dropdownButton(c.Key("line-ending"), ending, "换行格式", a.lineEndingLabel()).
-				Disabled(a.busy != "").Menu(a.lineEndingMenu)
+			dropdownButton(c.Key("line-ending"), ending, locales.LineEnding(), a.lineEndingLabel()).
+				Disabled(a.busy != nil).Menu(a.lineEndingMenu)
 		})
 	})
 	hadModal := a.fontDialog || a.settingsDialog
@@ -231,24 +245,24 @@ func (a *App) view(c *ui.Context) {
 }
 
 func (a *App) editMenu(m *ui.Menu) {
-	readOnly := a.busy != ""
+	readOnly := a.busy != nil
 	for _, item := range []struct {
 		label    string
 		command  editor.Command
 		disabled bool
 	}{
-		{"撤销", editor.Undo, readOnly || !a.doc.Buffer.CanUndo()},
-		{"重做", editor.Redo, readOnly || !a.doc.Buffer.CanRedo()},
+		{locales.Undo(), editor.Undo, readOnly || !a.doc.Buffer.CanUndo()},
+		{locales.Redo(), editor.Redo, readOnly || !a.doc.Buffer.CanRedo()},
 	} {
 		if m.Item(item.label).Disabled(item.disabled).Chosen() {
 			a.state.Run(item.command)
 		}
 	}
 	m.Separator()
-	if m.Item("查找").Shortcut(ui.Ctrl, ui.KeyF).Chosen() {
+	if m.Item(locales.Find()).Shortcut(ui.Ctrl, ui.KeyF).Chosen() {
 		a.showFind(false)
 	}
-	if m.Item("替换").Shortcut(ui.Ctrl, ui.KeyH).Chosen() {
+	if m.Item(locales.Replace()).Shortcut(ui.Ctrl, ui.KeyH).Chosen() {
 		a.showFind(true)
 	}
 	m.Separator()
@@ -256,23 +270,23 @@ func (a *App) editMenu(m *ui.Menu) {
 }
 
 func (a *App) fileMenu(m *ui.Menu) {
-	if m.Item("新建").Shortcut(ui.Ctrl, ui.KeyN).Disabled(a.busy != "").Chosen() {
+	if m.Item(locales.NewFile()).Shortcut(ui.Ctrl, ui.KeyN).Disabled(a.busy != nil).Chosen() {
 		a.newDocument()
 	}
-	if m.Item("打开…").Shortcut(ui.Ctrl, ui.KeyO).Disabled(a.busy != "").Chosen() {
+	if m.Item(locales.OpenMenu()).Shortcut(ui.Ctrl, ui.KeyO).Disabled(a.busy != nil).Chosen() {
 		a.chooseOpen()
 	}
-	if m.Item("保存").Shortcut(ui.Ctrl, ui.KeyS).Disabled(a.busy != "").Chosen() {
+	if m.Item(locales.Save()).Shortcut(ui.Ctrl, ui.KeyS).Disabled(a.busy != nil).Chosen() {
 		a.save(false, nil)
 	}
-	if m.Item("另存为…").Shortcut(ui.Ctrl|ui.Shift, ui.KeyS).Disabled(a.busy != "").Chosen() {
+	if m.Item(locales.SaveAsMenu()).Shortcut(ui.Ctrl|ui.Shift, ui.KeyS).Disabled(a.busy != nil).Chosen() {
 		a.save(true, nil)
 	}
-	if m.Item("关闭标签").Shortcut(ui.Ctrl, ui.KeyW).Disabled(a.busy != "").Chosen() {
+	if m.Item(locales.CloseTab()).Shortcut(ui.Ctrl, ui.KeyW).Disabled(a.busy != nil).Chosen() {
 		a.closeTab(a.documentTab)
 	}
 	m.Separator()
-	if m.Item("退出").Chosen() {
+	if m.Item(locales.Quit()).Chosen() {
 		a.Win.Close()
 	}
 }
@@ -315,20 +329,20 @@ func (a *App) persistPreferences() {
 	a.settings.FontSize, _ = strconv.Atoi(a.fontSize)
 	a.settings.Wrap = a.wrap
 	if err := savePreferences(a.settings); err != nil {
-		a.status = "设置未保存：" + err.Error()
+		a.status = locales.WrapError(err, locales.SettingsNotSaved).Error
 	}
 }
 
 func (a *App) chooseOpen() {
-	if a.busy != "" || a.confirming {
+	if a.busy != nil || a.confirming {
 		return
 	}
 	a.confirming = true
 	paths, err := a.dialogs.Open(mygo.OpenDialogOptions{
-		Parent: a.Win, Title: "打开文本文件", Multiple: true,
+		Parent: a.Win, Title: locales.OpenDialogTitle(), Multiple: true,
 		Filters: []mygo.FileFilter{
-			{Name: "文本和代码文件", Extensions: filetypes.Extensions()},
-			{Name: "所有文件", Extensions: []string{"*"}},
+			{Name: locales.TextCodeFiles(), Extensions: filetypes.Extensions()},
+			{Name: locales.AllFiles(), Extensions: []string{"*"}},
 		},
 	})
 	a.confirming = false
@@ -345,7 +359,7 @@ func (a *App) open(path string) {
 }
 
 func (a *App) confirmLeave(next func()) {
-	if a.busy != "" || a.confirming {
+	if a.busy != nil || a.confirming {
 		return
 	}
 	if !a.doc.Dirty() || !a.doc.HasChanges() {
@@ -356,8 +370,8 @@ func (a *App) confirmLeave(next func()) {
 	a.confirming = true
 	res, err := a.dialogs.Message(mygo.MessageOptions{
 		Parent: a.Win, Type: mygo.MessageQuestion, Title: "TextViewer",
-		Message: "是否保存对“" + name + "”的修改？",
-		Buttons: []string{"保存", "不保存", "取消"}, DefaultButton: 0, CancelButton: 2,
+		Message: locales.SaveChanges(name),
+		Buttons: []string{locales.Save(), locales.DontSave(), locales.Cancel()}, DefaultButton: 0, CancelButton: 2,
 	})
 	a.confirming = false
 	defer a.openNextFile()
@@ -374,7 +388,7 @@ func (a *App) confirmLeave(next func()) {
 }
 
 func (a *App) save(saveAs bool, then func()) {
-	if a.busy != "" || a.confirming {
+	if a.busy != nil || a.confirming {
 		return
 	}
 	path := a.doc.Path
@@ -401,11 +415,11 @@ func (a *App) save(saveAs bool, then func()) {
 		return
 	}
 	if tab := findOpenTab(a.tabs, resolved); tab != nil && tab != a.documentTab {
-		a.fail(errors.New("目标文件已在其他标签中打开，请切换到该标签保存，或选择其他文件名"))
+		a.fail(locales.NewError(locales.SaveTargetOpen))
 		return
 	}
 	snapshot := a.doc.CaptureSave()
-	ctx, id := a.startJob("正在保存…")
+	ctx, id := a.startJob(locales.Saving)
 	doc := a.doc
 	a.background(func() {
 		stamp, err := doc.SaveSnapshot(ctx, path, snapshot)
@@ -416,7 +430,7 @@ func (a *App) save(saveAs bool, then func()) {
 			}
 			doc.AcceptSave(path, snapshot, stamp)
 			a.applyLanguage()
-			a.status = ""
+			a.status = nil
 			if then != nil {
 				then()
 			}
@@ -425,20 +439,20 @@ func (a *App) save(saveAs bool, then func()) {
 }
 
 func (a *App) saveDialogOptions(path string, saveAs bool) mygo.SaveDialogOptions {
-	title := "保存文本文件"
+	title := locales.SaveDialogTitle()
 	if saveAs {
-		title = "另存为"
+		title = locales.SaveAs()
 	}
-	filters := []mygo.FileFilter{{Name: "所有文件", Extensions: []string{"*"}}}
+	filters := []mygo.FileFilter{{Name: locales.AllFiles(), Extensions: []string{"*"}}}
 	if ext := strings.TrimPrefix(filepath.Ext(path), "."); ext != "" {
-		filters = append([]mygo.FileFilter{{Name: strings.ToUpper(ext) + " 文件", Extensions: []string{ext}}}, filters...)
+		filters = append([]mygo.FileFilter{{Name: locales.FileFilter(strings.ToUpper(ext)), Extensions: []string{ext}}}, filters...)
 	}
 	return mygo.SaveDialogOptions{
 		Parent: a.Win, Title: title, DefaultPath: path, Filters: filters,
 	}
 }
 
-func (a *App) startJob(label string) (context.Context, uint64) {
+func (a *App) startJob(label locales.Message) (context.Context, uint64) {
 	a.stopJob()
 	a.job++
 	ctx, cancel := context.WithCancel(context.Background())
@@ -465,7 +479,7 @@ func (a *App) finishJob(id uint64, fn func()) {
 		if cancel != nil {
 			defer cancel()
 		}
-		a.busy = ""
+		a.busy = nil
 		a.state.ReadOnly = false
 		fn()
 		a.openNextFile()
@@ -491,13 +505,13 @@ func (a *App) updateUI(fn func()) {
 
 func (a *App) fail(err error) {
 	if errors.Is(err, context.Canceled) {
-		a.status = "已取消"
+		a.status = locales.Canceled
 		return
 	}
-	a.status = err.Error()
+	a.status = err.Error
 	_, _ = a.dialogs.Message(mygo.MessageOptions{
 		Parent: a.Win, Type: mygo.MessageError, Title: "TextViewer",
-		Message: "操作未完成", Detail: err.Error(), Buttons: []string{"确定"},
+		Message: locales.OperationFailed(), Detail: err.Error(), Buttons: []string{locales.Ok()},
 	})
 }
 

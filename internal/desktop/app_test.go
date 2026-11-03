@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Oranjekop/TextViewer/internal/document"
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -43,7 +44,7 @@ func TestCompactLayoutNoOverlap(t *testing.T) {
 		tester := ui.NewTester(a.view, width, 600)
 		for _, row := range [][]string{
 			{"文件", "打开", "保存", "另存为", "查找", "替换", "自动换行", "字体", "字号", "代码格式", "设置"},
-			{"查找内容", "区分大小写", "上一处", "下一处", "关闭查找"},
+			{"查找内容", "区分大小写", "正则", "转义字符", "上一处", "下一处", "关闭查找"},
 			{"替换内容", "全部替换"},
 		} {
 			var previous ui.Rect
@@ -87,7 +88,7 @@ func TestFindUsesSelectionAndKeepsWrap(t *testing.T) {
 func TestReadOnlyDuringBackgroundOperation(t *testing.T) {
 	a := testApp()
 	a.doc.Buffer.Set("original")
-	a.busy = "正在打开…"
+	a.busy = locales.Text("正在打开…")
 	tester := ui.NewTester(a.view, 1000, 700)
 	tester.Type("should not be inserted")
 	if a.doc.Buffer.String() != "original" {

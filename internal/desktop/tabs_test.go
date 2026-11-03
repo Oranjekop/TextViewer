@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Oranjekop/TextViewer/internal/document"
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -36,7 +37,7 @@ func TestOpenMultipleFilesPreservesExistingEditsAndReusesOpenTabs(t *testing.T) 
 		return []string{first, second, first}, nil
 	}
 	a.chooseOpen()
-	if len(a.tabs) != 3 || !document.SamePath(a.doc.Path, first) || a.busy != "" || len(a.pendingOpen) != 0 {
+	if len(a.tabs) != 3 || !document.SamePath(a.doc.Path, first) || a.busy != nil || len(a.pendingOpen) != 0 {
 		t.Fatalf("opened %d tabs, current %q, busy %q, queue %v", len(a.tabs), a.doc.Path, a.busy, a.pendingOpen)
 	}
 	if original.doc.Buffer.String() != "unsaved text" || len(a.dialogs.(*fakeDialogs).messages) != 0 {
@@ -55,7 +56,7 @@ func TestQueuedFilesAllOpenAndBadFileDoesNotDropFollowingPaths(t *testing.T) {
 	a := testApp()
 	first := desktopFile(t, "first.txt", "first")
 	second := desktopFile(t, "second.txt", "second")
-	_, id := a.startJob("正在保存…")
+	_, id := a.startJob(locales.Saving)
 	a.openFiles([]string{first, first + ".missing", second})
 	if len(a.tabs) != 1 || len(a.pendingOpen) != 3 {
 		t.Fatal("opening while busy did not queue all paths")
@@ -71,9 +72,9 @@ func TestQueuedFilesAllOpenAndBadFileDoesNotDropFollowingPaths(t *testing.T) {
 
 func TestOpeningFirstFileClearsEmptyTabSearchResult(t *testing.T) {
 	a := testApp()
-	a.searchStatus = "未找到"
+	a.searchStatus = locales.Text("未找到")
 	a.open(desktopFile(t, "first.txt", "first file"))
-	if len(a.tabs) != 1 || a.searchStatus != "" {
+	if len(a.tabs) != 1 || a.searchStatus != nil {
 		t.Fatal("reusing the initial empty tab kept its stale search result")
 	}
 }
@@ -192,7 +193,7 @@ func TestTabsCannotChangeDuringDocumentOperation(t *testing.T) {
 	first := a.documentTab
 	a.newDocument()
 	active := a.documentTab
-	_, id := a.startJob("正在格式化 JSON…")
+	_, id := a.startJob(locales.FormattingJSON)
 	tester := ui.NewTester(a.view, 760, 600)
 	tester.Key(ui.Ctrl, ui.KeyTab)
 	tester.Key(ui.Ctrl, ui.KeyN)

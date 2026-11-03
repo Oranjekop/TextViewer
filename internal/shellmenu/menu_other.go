@@ -2,13 +2,13 @@
 
 package shellmenu
 
-import "errors"
+import "github.com/Oranjekop/TextViewer/locales"
 
-var ErrTrustRequired = errors.New("需要先信任 TextViewer 的本机签名")
+var ErrTrustRequired = locales.NewError(locales.SignatureTrustRequired)
 
 func TrustAndInstall() error { return Install() }
 
-func Install() error           { return errors.New("此功能需要 Windows") }
-func Uninstall() error         { return errors.New("此功能需要 Windows") }
+func Install() error           { return locales.NewError(locales.RequiresWindows) }
+func Uninstall() error         { return locales.NewError(locales.RequiresWindows) }
 func Cleanup() error           { return nil }
 func Installed() (bool, error) { return false, nil }

@@ -2,10 +2,10 @@
 
 package fileassoc
 
-import "errors"
+import "github.com/Oranjekop/TextViewer/locales"
 
-func Register() error           { return errors.New("文件关联需要 Windows") }
-func Unregister() error         { return errors.New("文件关联需要 Windows") }
-func OpenDefaults() error       { return errors.New("默认应用设置需要 Windows") }
+func Register() error           { return locales.NewError(locales.AssociationsRequireWindows) }
+func Unregister() error         { return locales.NewError(locales.AssociationsRequireWindows) }
+func OpenDefaults() error       { return locales.NewError(locales.DefaultsRequireWindows) }
 func Registered() (bool, error) { return false, nil }
 func RemoveRegistration() error { return Unregister() }

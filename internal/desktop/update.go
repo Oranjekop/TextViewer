@@ -3,11 +3,12 @@ package desktop
 import (
 	"context"
 	"errors"
-	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/Oranjekop/TextViewer/internal/releaseinfo"
 	"github.com/Oranjekop/TextViewer/internal/update"
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo"
 )
 
@@ -52,14 +53,14 @@ func (a *App) checkUpdates(manual bool) {
 	}
 	if _, err := releaseinfo.ParseVersion(a.version); err != nil {
 		if manual {
-			a.updateMessage, a.updateFailed = "当前版本无法检查更新", true
+			a.updateMessage, a.updateFailed = locales.InvalidUpdateVersion, true
 		}
 		return
 	}
 	a.stopUpdateCheck()
 	ctx, cancel := context.WithCancel(context.Background())
 	a.updateCancel, a.updateChecking = cancel, true
-	a.updateMessage, a.updateFailed = "", false
+	a.updateMessage, a.updateFailed = nil, false
 	a.settings.LastUpdateCheck = time.Now().Unix()
 	a.persistPreferences()
 	a.background(func() {
@@ -76,7 +77,7 @@ func (a *App) checkUpdates(manual bool) {
 			}
 			if err != nil {
 				if manual && !errors.Is(err, context.Canceled) {
-					a.updateMessage, a.updateFailed = "暂时无法检查更新，请稍后再试。", true
+					a.updateMessage, a.updateFailed = locales.UpdateCheckFailed, true
 					if !a.settingsDialog {
 						a.updateError(a.updateMessage)
 					}
@@ -85,7 +86,8 @@ func (a *App) checkUpdates(manual bool) {
 			}
 			if release == nil {
 				if manual {
-					a.updateMessage = "当前已是最新版本 v" + a.version
+					version := a.version
+					a.updateMessage = func() string { return locales.UpToDate(version) }
 					a.status = a.updateMessage
 				}
 				return
@@ -100,11 +102,11 @@ func (a *App) checkUpdates(manual bool) {
 }
 
 func (a *App) showUpdateIfReady() {
-	if a.closed || a.Win == nil || a.busy != "" || a.confirming || a.settingsDialog || a.fontDialog || !a.updatePending || a.availableUpdate == nil {
+	if a.closed || a.Win == nil || a.busy != nil || a.confirming || a.settingsDialog || a.fontDialog || !a.updatePending || a.availableUpdate == nil {
 		return
 	}
 	a.updatePending = false
-	detail := "当前版本 v" + a.version
+	detail := locales.CurrentVersion(a.version)
 	if notes := a.availableUpdate.Notes; notes != "" {
 		runes := []rune(notes)
 		if len(runes) > 1200 {
@@ -113,9 +115,9 @@ func (a *App) showUpdateIfReady() {
 		detail += "\n\n" + string(runes)
 	}
 	result, err := a.dialogs.Message(mygo.MessageOptions{
-		Parent: a.Win, Type: mygo.MessageQuestion, Title: "TextViewer 更新",
-		Message: "发现新版本 v" + a.availableUpdate.Version, Detail: detail,
-		Buttons: []string{"下载安装", "稍后"}, DefaultButton: 1, CancelButton: 1,
+		Parent: a.Win, Type: mygo.MessageQuestion, Title: locales.UpdateTitle(),
+		Message: locales.NewVersion(a.availableUpdate.Version), Detail: detail,
+		Buttons: []string{locales.DownloadInstall(), locales.Later()}, DefaultButton: 1, CancelButton: 1,
 	})
 	if err == nil && result.Button == 0 {
 		a.downloadUpdate()
@@ -128,29 +130,30 @@ func (a *App) downloadUpdate() {
 		return
 	}
 	release := a.availableUpdate
-	if release == nil || a.busy != "" {
+	if release == nil || a.busy != nil {
 		return
 	}
-	ctx, id := a.startJob("正在下载更新…")
+	ctx, id := a.startJob(locales.DownloadingUpdate)
 	go func() {
 		installer, err := a.updateClient.Download(ctx, release, func(done, total int64) {
 			a.Win.Update(func() {
-				if !a.closed && a.job == id && a.busy != "" {
-					a.busy = fmt.Sprintf("正在下载更新… %d%%", min(100, done*100/total))
+				if !a.closed && a.job == id && a.busy != nil {
+					percent := strconv.FormatInt(min(100, done*100/total), 10)
+					a.busy = func() string { return locales.DownloadProgress(percent) }
 				}
 			})
 		})
 		a.finishJob(id, func() {
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
-					a.status = "已取消下载"
+					a.status = locales.DownloadCanceled
 				} else {
-					a.updateError("更新没有下载完成，请稍后重试。")
+					a.updateError(locales.DownloadFailed)
 				}
 				return
 			}
 			a.updateInstaller = installer
-			a.status = "更新已下载，准备安装"
+			a.status = locales.UpdateReady
 			a.installUpdate()
 		})
 	}()
@@ -160,17 +163,17 @@ func (a *App) installUpdate() {
 	a.confirmAllTabs(func() {
 		if err := update.StartInstaller(a.updateInstaller); err != nil {
 			a.updateInstaller = nil
-			a.updateError("安装程序未能启动，请重新下载后再试。")
+			a.updateError(locales.InstallerFailed)
 			return
 		}
 		a.Win.Destroy()
 	})
 }
 
-func (a *App) updateError(message string) {
+func (a *App) updateError(message locales.Message) {
 	a.status = message
 	_, _ = a.dialogs.Message(mygo.MessageOptions{
-		Parent: a.Win, Type: mygo.MessageError, Title: "TextViewer 更新",
-		Message: message, Buttons: []string{"确定"},
+		Parent: a.Win, Type: mygo.MessageError, Title: locales.UpdateTitle(),
+		Message: message.String(), Buttons: []string{locales.Ok()},
 	})
 }

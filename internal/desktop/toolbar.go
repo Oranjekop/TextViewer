@@ -3,6 +3,7 @@ package desktop
 import (
 	"embed"
 
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -48,29 +49,29 @@ func (a *App) toolbar(c *ui.Context) {
 	t := c.Theme()
 	ui.Toolbar(c, func() {
 		ui.Button(c.Key("file"), "").Size(50, 34).MinWidth(50).Padding(0, 6).Gap(4).
-			Label("文件").Tooltip("文件").Children(func() {
+			Label(locales.File()).Tooltip(locales.File()).Children(func() {
 			ui.Icon(c, toolbarIcons["file"]).Size(20, 20)
 			ui.Icon(c, toolbarIcons["chevron-down"]).Size(12, 12).TextColor(t.TextMuted)
 		}).Menu(a.fileMenu)
-		if iconButton(c, "open", "打开", "打开 (Ctrl+O)", false).Disabled(a.busy != "").Clicked() {
+		if iconButton(c, "open", locales.Open(), locales.Open()+" (Ctrl+O)", false).Disabled(a.busy != nil).Clicked() {
 			a.chooseOpen()
 		}
-		if iconButton(c, "save", "保存", "保存 (Ctrl+S)", false).Disabled(a.busy != "").Clicked() {
+		if iconButton(c, "save", locales.Save(), locales.Save()+" (Ctrl+S)", false).Disabled(a.busy != nil).Clicked() {
 			a.save(false, nil)
 		}
-		if iconButton(c, "save-as", "另存为", "另存为 (Ctrl+Shift+S)", false).Disabled(a.busy != "").Clicked() {
+		if iconButton(c, "save-as", locales.SaveAs(), locales.SaveAs()+" (Ctrl+Shift+S)", false).Disabled(a.busy != nil).Clicked() {
 			a.save(true, nil)
 		}
 		ui.Box(c).Width(1).Height(20).Margin(0, 4).Background(t.Border)
-		if iconButton(c, "find", "查找", "查找 (Ctrl+F)", a.findOpen && !a.replacing).Clicked() {
+		if iconButton(c, "find", locales.Find(), locales.Find()+" (Ctrl+F)", a.findOpen && !a.replacing).Clicked() {
 			a.showFind(false)
 		}
-		if iconButton(c, "replace", "替换", "替换 (Ctrl+H)", a.findOpen && a.replacing).Clicked() {
+		if iconButton(c, "replace", locales.Replace(), locales.Replace()+" (Ctrl+H)", a.findOpen && a.replacing).Clicked() {
 			a.showFind(true)
 		}
 		ui.Spacer(c)
 		wrap := ui.Toggle(c.Key("wrap"), &a.wrap, "").Size(36, 34).MinWidth(36).Padding(0).
-			Label("自动换行").Tooltip("自动换行 (Alt+Z)").Children(func() {
+			Label(locales.WordWrap()).Tooltip(locales.WordWrap() + " (Alt+Z)").Children(func() {
 			ui.Icon(c, toolbarIcons["wrap"]).Size(20, 20)
 		})
 		if a.wrap {
@@ -79,21 +80,21 @@ func (a *App) toolbar(c *ui.Context) {
 		if wrap.Changed() {
 			a.persistPreferences()
 		}
-		if iconButton(c, "font", "字体", "字体："+a.editorFont(), false).Clicked() {
+		if iconButton(c, "font", locales.Font(), locales.FontTip(a.editorFont()), false).Clicked() {
 			a.chooseFont()
 		}
 		if ui.Select(c, &a.fontSize, []string{"10", "12", "14", "16", "18", "20", "24", "28", "32", "40", "48"}).
-			Width(68).MinWidth(0).Label("字号").Tooltip("字号 (Ctrl+加号 / 减号)").Changed() {
+			Width(68).MinWidth(0).Label(locales.FontSize()).Tooltip(locales.FontSizeTip()).Changed() {
 			a.persistPreferences()
 		}
 		ui.Button(c.Key("language"), "").Width(164).MinWidth(164).Height(34).Padding(0, 10).
-			Label("代码格式").Tooltip(a.languageTooltip()).Disabled(a.busy != "").Children(func() {
+			Label(locales.CodeFormat()).Tooltip(a.languageTooltip()).Disabled(a.busy != nil).Children(func() {
 			ui.Icon(c, toolbarIcons["code"]).Size(18, 18).TextColor(t.TextMuted)
 			ui.Text(c, a.languageLabel()).SingleLine().Grow(1).FontSize(13)
 			ui.Icon(c, toolbarIcons["chevron-down"]).Size(12, 12).TextColor(t.TextMuted)
 		}).Menu(a.languageMenu)
-		if iconButton(c, "settings", "设置", "设置", false).Disabled(a.busy != "").Clicked() {
+		if iconButton(c, "settings", locales.Settings(), locales.Settings(), false).Disabled(a.busy != nil).Clicked() {
 			a.chooseSettings()
 		}
-	}).FillWidth().Height(54).Padding(10, 14).Gap(6).Background(t.Surface).Label("工具栏")
+	}).FillWidth().Height(54).Padding(10, 14).Gap(6).Background(t.Surface).Label(locales.Toolbar())
 }

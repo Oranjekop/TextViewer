@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Oranjekop/TextViewer/internal/update"
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -183,9 +184,9 @@ func TestUpdateResultFitsAlongsideSystemSettingsError(t *testing.T) {
 	a.version = "0.0.5"
 	a.integration = &fakeIntegration{stateError: errors.New("系统设置读取失败")}
 	a.chooseSettings()
-	a.updateMessage, a.updateFailed = "暂时无法检查更新，请稍后再试。", true
+	a.updateMessage, a.updateFailed = locales.UpdateCheckFailed, true
 	tester := ui.NewTester(a.view, 760, 420)
-	for _, label := range []string{"保存设置", "取消", "重试", a.updateMessage} {
+	for _, label := range []string{"保存设置", "取消", "重试", a.updateMessage.String()} {
 		rect, ok := tester.Find(label)
 		if !ok || rect.Y < 0 || rect.Y+rect.H > 420 {
 			t.Fatalf("%q outside minimum window when both operations fail: %+v", label, rect)
@@ -204,7 +205,7 @@ func TestCanceledUpdateCheckClearsWaitingStateWithoutError(t *testing.T) {
 		return nil, ctx.Err()
 	}}
 	a.checkUpdates(true)
-	if !a.settingsDialog || a.updateChecking || a.updateFailed || a.updateMessage != "" {
+	if !a.settingsDialog || a.updateChecking || a.updateFailed || a.updateMessage != nil {
 		t.Fatal("canceled check closed settings or left a waiting/error state")
 	}
 }
@@ -226,9 +227,9 @@ func TestUpdateSettingsPreview(t *testing.T) {
 			case "waiting":
 				a.updateChecking = true
 			case "latest":
-				a.updateMessage = "当前已是最新版本 v0.0.5"
+				a.updateMessage = locales.Text("当前已是最新版本 v0.0.5")
 			case "failed":
-				a.updateMessage, a.updateFailed = "暂时无法检查更新，请稍后再试。", true
+				a.updateMessage, a.updateFailed = locales.UpdateCheckFailed, true
 			case "available":
 				a.availableUpdate = &update.Release{Version: "0.0.6"}
 			}

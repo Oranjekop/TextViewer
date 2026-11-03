@@ -11,6 +11,7 @@ import (
 	"github.com/Oranjekop/TextViewer/internal/fileassoc"
 	"github.com/Oranjekop/TextViewer/internal/instance"
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
+	_ "github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo"
 )
 
@@ -53,7 +54,6 @@ func main() {
 	}
 	mygo.App.SetName("TextViewer")
 	mygo.App.SetVersion(version)
-	mygo.App.SetLocale("zh-CN")
 	app := desktop.New()
 	lock, forwarded, err := instance.Start(func(args []string, dir string) {
 		mygo.App.WhenReady(func() { app.OpenArguments(args, dir) })

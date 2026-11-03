@@ -4,14 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui/editor"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -29,7 +28,7 @@ const (
 	GB18030 Encoding = "GB18030"
 )
 
-var ErrChanged = errors.New("文件已被其他程序修改，请另存为，或重新打开后再编辑")
+var ErrChanged = locales.NewError(locales.FileChanged)
 
 type Document struct {
 	Path     string
@@ -85,12 +84,12 @@ func Load(ctx context.Context, path string) (*Document, error) {
 		return nil, err
 	}
 	if !stamp.Mode().IsRegular() {
-		return nil, errors.New("请选择一个文本文件")
+		return nil, locales.NewError(locales.SelectTextFile)
 	}
 	// Leave headroom for indexing, undo and decoding rather than risking an
 	// unbounded allocation from a corrupt file or an unexpectedly large input.
 	if stamp.Size() > 2<<30 {
-		return nil, errors.New("当前版本支持打开不超过 2 GB 的文本文件")
+		return nil, locales.NewError(locales.FileTooLarge)
 	}
 	r := bufio.NewReaderSize(contextReader{ctx, f}, 64<<10)
 	prefix, _ := r.Peek(3)
@@ -137,7 +136,7 @@ func Load(ctx context.Context, path string) (*Document, error) {
 	// Plain UTF-8 already passed the detection check above. Only decoded or
 	// BOM-tagged input still needs validation here.
 	if (enc != UTF8 && !utf8.ValidString(content)) || strings.IndexByte(content, 0) >= 0 {
-		return nil, errors.New("这个文件不是可编辑的文本文件")
+		return nil, locales.NewError(locales.NotTextFile)
 	}
 	if err = ctx.Err(); err != nil {
 		return nil, err
@@ -176,7 +175,7 @@ func verifyRoundTrip(ctx context.Context, f *os.File, skip int, codec encoding.E
 	}
 	encoded := transform.NewReader(strings.NewReader(text), codec.NewEncoder())
 	actual, expected := make([]byte, 64<<10), make([]byte, 64<<10)
-	invalid := errors.New("文件中有无法识别的编码内容，请先转换为 UTF-8")
+	invalid := locales.NewError(locales.InvalidEncoding)
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -247,7 +246,7 @@ func (d *Document) SaveSnapshot(ctx context.Context, path string, snapshot SaveS
 	switch snapshot.encoding {
 	case UTF8, UTF8BOM, UTF16LE, UTF16BE, GB18030:
 	default:
-		return nil, fmt.Errorf("不支持的编码：%s", snapshot.encoding)
+		return nil, locales.NewError(func() string { return locales.UnsupportedEncoding(string(snapshot.encoding)) })
 	}
 	path, err := ResolvePath(path)
 	if err != nil {
@@ -262,7 +261,7 @@ func (d *Document) SaveSnapshot(ctx context.Context, path string, snapshot SaveS
 		return nil, statErr
 	}
 	if targetStamp != nil && targetStamp.Mode().Perm()&0200 == 0 {
-		return nil, errors.New("文件为只读，请使用另存为")
+		return nil, locales.NewError(locales.FileReadOnly)
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".textviewer-*.tmp")
 	if err != nil {
@@ -325,7 +324,7 @@ func (d *Document) SaveSnapshot(ctx context.Context, path string, snapshot SaveS
 		return nil, ErrChanged
 	}
 	if err = replaceFile(tmpName, path); err != nil {
-		return nil, fmt.Errorf("保存失败：%w", err)
+		return nil, locales.WrapError(err, locales.SaveFailed)
 	}
 	return os.Stat(path)
 }

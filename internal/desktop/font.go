@@ -3,10 +3,11 @@ package desktop
 import (
 	"sync"
 
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
 )
 
-const fontAutomatic = "自动"
+const fontAutomatic = "@automatic"
 
 var installedFonts = sync.OnceValue(func() []string {
 	families := ui.FontFamilies()
@@ -29,12 +30,21 @@ func (a *App) editorFont() string {
 }
 
 func (a *App) chooseFont() {
-	a.fontOptions = installedFonts()
 	a.fontDraft = a.settings.FontFamily
 	if a.fontDraft == "" {
 		a.fontDraft = fontAutomatic
 	}
+	a.refreshFontOptions()
 	a.fontDialog = true
+}
+
+func (a *App) refreshFontOptions() {
+	// Cache only actual system families; translated labels are per dialog.
+	a.fontOptions = append([]string{locales.Automatic()}, installedFonts()[1:]...)
+	a.fontInput = a.fontDraft
+	if a.fontDraft == fontAutomatic {
+		a.fontInput = locales.Automatic()
+	}
 }
 
 func (a *App) applyFont() {
@@ -49,8 +59,13 @@ func (a *App) applyFont() {
 
 func (a *App) fontChooser(c *ui.Context) {
 	ui.Modal(c.Key("font-dialog"), &a.fontDialog, func() {
-		ui.Text(c, "字体").FontSize(18).Bold()
-		ui.Combobox(c, &a.fontDraft, a.fontOptions).Width(360).Label("字体名称")
+		ui.Text(c, locales.Font()).FontSize(18).Bold()
+		if ui.Combobox(c, &a.fontInput, a.fontOptions).Width(360).Label(locales.FontName()).Changed() {
+			a.fontDraft = a.fontInput
+			if a.fontInput == locales.Automatic() {
+				a.fontDraft = fontAutomatic
+			}
+		}
 		family := a.fontDraft
 		if family == fontAutomatic {
 			if a.doc.Buffer.Language() == nil {
@@ -59,14 +74,14 @@ func (a *App) fontChooser(c *ui.Context) {
 				family = "monospace"
 			}
 		}
-		ui.Text(c, "中文字体预览\nAa Bb 0123456789\n{ \"text\": \"TextViewer\" }").
+		ui.Text(c, locales.FontPreview()).
 			Font(family).FontSize(18).Width(360).Padding(12, 0)
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-			if ui.Button(c, "取消").Clicked() {
+			if ui.Button(c, locales.Cancel()).Clicked() {
 				a.fontDialog = false
 				a.pendingFocus = true
 			}
-			if ui.PrimaryButton(c, "应用").Clicked() {
+			if ui.PrimaryButton(c, locales.Apply()).Clicked() {
 				a.applyFont()
 			}
 		})

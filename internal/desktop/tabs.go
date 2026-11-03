@@ -3,32 +3,38 @@ package desktop
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/Oranjekop/TextViewer/internal/document"
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
 
 type documentTab struct {
 	id           uint64
-	untitled     string
+	untitled     int
 	doc          *document.Document
 	state        *editor.State
 	language     string
 	column       columnCache
-	searchStatus string
+	searchStatus locales.Message
+	searchFailed bool
+	searchResult searchResult
 }
 
 func (tab *documentTab) name() string {
 	if tab.doc.Path != "" {
 		return filepath.Base(tab.doc.Path)
 	}
-	return tab.untitled
+	if tab.untitled <= 1 {
+		return locales.Untitled()
+	}
+	return locales.UntitledNumber(strconv.Itoa(tab.untitled))
 }
 
 func (tab *documentTab) tooltip() string {
@@ -43,31 +49,28 @@ func (a *App) addDocument(doc *document.Document) {
 	tab := &documentTab{id: a.nextTabID, doc: doc}
 	if doc.Path == "" {
 		a.untitledCount++
-		tab.untitled = "未命名.txt"
-		if a.untitledCount > 1 {
-			tab.untitled = fmt.Sprintf("未命名 %d.txt", a.untitledCount)
-		}
+		tab.untitled = a.untitledCount
 	}
 	a.tabs = append(a.tabs, tab)
 	a.tabIndex = len(a.tabs) - 1
 	a.documentTab = tab
 	a.resetEditor()
-	a.status, a.revealTab = "", true
+	a.status, a.revealTab = nil, true
 }
 
 func (a *App) newDocument() {
-	if a.busy == "" && !a.confirming {
+	if a.busy == nil && !a.confirming {
 		a.addDocument(document.New())
 	}
 }
 
 func (a *App) activateTab(tab *documentTab) {
-	if a.busy != "" || a.confirming || tab == a.documentTab || !slices.Contains(a.tabs, tab) {
+	if a.busy != nil || a.confirming || tab == a.documentTab || !slices.Contains(a.tabs, tab) {
 		return
 	}
 	a.documentTab = tab
 	a.tabIndex = slices.Index(a.tabs, tab)
-	a.status = ""
+	a.status = nil
 	a.pendingFocus, a.revealTab = true, true
 }
 
@@ -89,12 +92,12 @@ func (a *App) tabBar(c *ui.Context) {
 	ui.Row(c).FillWidth().Height(40).Gap(4).Padding(0, 8).AlignItems(ui.Center).Background(t.Surface).Children(func() {
 		ui.ScrollHorizontal(c.Key("tabs")).Grow(1).MinWidth(0).Height(40).Scrollbars(false).Children(func() {
 			parts := ui.TabsBase(c, &a.tabIndex, len(a.tabs))
-			parts.List.Height(40).Gap(t.Space(1)).Disabled(a.busy != "").Children(func() {
+			parts.List.Height(40).Gap(t.Space(1)).Disabled(a.busy != nil).Children(func() {
 				for i, docTab := range a.tabs {
 					selected := i == a.tabIndex
 					tab := parts.Tab(i).Height(40).MinWidth(100).MaxWidth(240).
 						Padding(t.Space(2), t.Space(3)).Gap(8).AlignItems(ui.Center).FocusRing(false).
-						Label("标签：" + docTab.name()).Tooltip(docTab.tooltip()).TextColor(t.TextMuted)
+						Label(locales.TabLabel(docTab.name())).Tooltip(docTab.tooltip()).TextColor(t.TextMuted)
 					if selected {
 						tab.TextColor(t.Text).FontWeight(600)
 						keyboardChoice = tab.FocusVisible()
@@ -120,7 +123,7 @@ func (a *App) tabBar(c *ui.Context) {
 							label = "* " + label
 						}
 						ui.Text(c, label).SingleLine().Grow(1).MinWidth(0).FontSize(13)
-						if tabAction(c, "close", "关闭标签："+docTab.name(), "关闭标签 (Ctrl+W)").Clicked() {
+						if tabAction(c, "close", locales.CloseTabLabel(docTab.name()), locales.CloseTab()+" (Ctrl+W)").Clicked() {
 							close = docTab
 						}
 					})
@@ -131,10 +134,10 @@ func (a *App) tabBar(c *ui.Context) {
 			}
 		})
 		if len(a.tabs) > 1 {
-			tabAction(c, "chevron-down", "标签列表", "打开的文件").Size(28, 28).
-				Disabled(a.busy != "").Menu(a.tabMenu)
+			tabAction(c, "chevron-down", locales.TabList(), locales.OpenFiles()).Size(28, 28).
+				Disabled(a.busy != nil).Menu(a.tabMenu)
 		}
-		if tabAction(c, "plus", "新建标签", "新建 (Ctrl+N)").Size(28, 28).Disabled(a.busy != "").Clicked() {
+		if tabAction(c, "plus", locales.NewTab(), locales.NewFile()+" (Ctrl+N)").Size(28, 28).Disabled(a.busy != nil).Clicked() {
 			a.newDocument()
 		}
 	})
@@ -171,7 +174,7 @@ func (a *App) tabMenu(m *ui.Menu) {
 }
 
 func (a *App) closeTab(tab *documentTab) {
-	if a.busy != "" || a.confirming || !slices.Contains(a.tabs, tab) {
+	if a.busy != nil || a.confirming || !slices.Contains(a.tabs, tab) {
 		return
 	}
 	if tab.doc.Dirty() {
@@ -194,7 +197,7 @@ func (a *App) removeTab(tab *documentTab) {
 		a.documentTab = a.tabs[min(index, len(a.tabs)-1)]
 	}
 	a.tabIndex = slices.Index(a.tabs, a.documentTab)
-	a.status = ""
+	a.status = nil
 	a.pendingFocus, a.revealTab = true, true
 }
 
@@ -251,7 +254,7 @@ func findOpenTab(tabs []*documentTab, path string) *documentTab {
 }
 
 func (a *App) openNextFile() {
-	for !a.closed && !a.confirming && a.busy == "" && len(a.pendingOpen) > 0 {
+	for !a.closed && !a.confirming && a.busy == nil && len(a.pendingOpen) > 0 {
 		path := a.pendingOpen[0]
 		a.pendingOpen[0] = ""
 		a.pendingOpen = a.pendingOpen[1:]
@@ -263,7 +266,8 @@ func (a *App) openNextFile() {
 			continue
 		}
 		tabs := slices.Clone(a.tabs)
-		ctx, id := a.startJob("正在打开 " + filepath.Base(path) + "…")
+		name := filepath.Base(path)
+		ctx, id := a.startJob(func() string { return locales.Opening(name) })
 		a.background(func() {
 			// Resolve junctions once off the UI thread. Existing document paths
 			// are already resolved, so a batch does not repeat disk lookups for
@@ -295,7 +299,7 @@ func (a *App) openNextFile() {
 				if len(a.tabs) == 1 && a.doc.Path == "" && a.doc.Buffer.Len() == 0 && !a.doc.Dirty() {
 					a.doc = doc
 					a.resetEditor()
-					a.status, a.searchStatus = "", ""
+					a.status, a.searchStatus = nil, nil
 				} else {
 					a.addDocument(doc)
 				}

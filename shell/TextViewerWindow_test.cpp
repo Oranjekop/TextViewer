@@ -114,6 +114,41 @@ static void startEditor(Child &child, const std::wstring &exe,
             "Cannot start the editor on the private desktop");
 }
 
+static std::wstring verifyLocaleStartup(const std::wstring &exe,
+                                       const std::wstring &desktopName, HDESK desktop,
+                                       const std::filesystem::path &settings,
+                                       const char *locale, const wchar_t *overrideLocale,
+                                       const std::wstring &expected = L"") {
+    std::ofstream(settings / L"settings.json")
+        << "{\"autoCheckUpdates\":false,\"locale\":\"" << locale << "\"}";
+    require(SetEnvironmentVariableW(L"MYGO_LOCALE", overrideLocale) != FALSE ||
+                (!overrideLocale && GetLastError() == ERROR_ENVVAR_NOT_FOUND),
+            "Cannot set the isolated language override");
+    Child child;
+    startEditor(child, exe, desktopName, L"");
+    std::wstring title;
+    for (int i = 0; i < 300; ++i) {
+        EnumDesktopWindows(desktop, findWindow, reinterpret_cast<LPARAM>(&child));
+        if (child.window) {
+            wchar_t text[1024] = {};
+            GetWindowTextW(child.window, text, ARRAYSIZE(text));
+            title = text;
+            if (title.find(L" - TextViewer") != std::wstring::npos) break;
+        }
+        if (WaitForSingleObject(child.process.hProcess, 50) != WAIT_TIMEOUT) break;
+    }
+    require(child.window && title.find(L" - TextViewer") != std::wstring::npos,
+            "The localized startup title was not set");
+    require(expected.empty() || title == expected,
+            "The native startup language did not match the saved or one-run choice");
+    require(PostMessageW(child.window, WM_CLOSE, 0, 0) != FALSE,
+            "Cannot close the isolated locale test");
+    require(WaitForSingleObject(child.process.hProcess, 5000) == WAIT_OBJECT_0,
+            "The isolated locale test did not exit");
+    child.window = nullptr;
+    return title;
+}
+
 static void verifyBlankStartup(const std::wstring &exe, const std::wstring &desktopName,
                               HDESK desktop, const std::filesystem::path &fixture,
                               const std::filesystem::path &cache) {
@@ -277,6 +312,17 @@ int wmain(int argc, wchar_t **argv) {
         desktop = CreateDesktopW(name.c_str(), nullptr, nullptr, 0, GENERIC_ALL, nullptr);
         require(desktop != nullptr, "Cannot create a private desktop");
         const auto exe = std::filesystem::absolute(argv[1]).wstring();
+        const auto systemTitle = verifyLocaleStartup(exe, name, desktop, settings, "", nullptr);
+        verifyLocaleStartup(exe, name, desktop, settings, "zh-Hans", nullptr,
+                            L"\u672a\u547d\u540d.txt - TextViewer");
+        verifyLocaleStartup(exe, name, desktop, settings, "en", nullptr,
+                            L"Untitled.txt - TextViewer");
+        verifyLocaleStartup(exe, name, desktop, settings, "zh-Hans", L"en",
+                            L"Untitled.txt - TextViewer");
+        // The app preference for System must clear a stale framework override.
+        std::ofstream(settings / L"locale") << (systemTitle == L"Untitled.txt - TextViewer" ? "zh-Hans" : "en");
+        verifyLocaleStartup(exe, name, desktop, settings, "", nullptr, systemTitle);
+        std::cout << "Native saved languages, one-run override and return to System passed.\n" << std::flush;
         const auto handoff = isolated / L"handoff & \u4e2d\u6587.txt";
         verifyBlankStartup(exe, name, desktop, handoff, isolated);
         verifyLaunch(exe, name, desktop, isolated / L"sample.txt", resources);
@@ -288,6 +334,7 @@ int wmain(int argc, wchar_t **argv) {
         DeleteFileW((isolated / L"sample.textviewer-icon-test").c_str());
         DeleteFileW(handoff.c_str());
         DeleteFileW((settings / L"settings.json").c_str());
+        DeleteFileW((settings / L"locale").c_str());
         RemoveDirectoryW(settings.c_str());
         RemoveDirectoryW(isolated.c_str());
         FreeLibrary(resources);

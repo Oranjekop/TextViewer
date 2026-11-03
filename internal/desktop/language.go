@@ -4,6 +4,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
@@ -66,22 +67,25 @@ func (a *App) languageLabel() string {
 	if language := a.doc.Buffer.Language(); language != nil {
 		return language.Name
 	}
-	return languagePlain
+	return locales.PlainText()
 }
 
 func (a *App) languageTooltip() string {
-	label := "代码格式：" + a.languageLabel()
 	if a.language == "" || a.language == languageAuto {
-		label += "（自动识别）"
+		return locales.AutoSyntaxTip(a.languageLabel())
 	}
-	return label
+	return locales.SyntaxTip(a.languageLabel())
 }
 
 func (a *App) languageMenu(m *ui.Menu) {
 	a.jsonFormatMenuItem(m)
 	m.Separator()
 	for _, name := range []string{languageAuto, languagePlain} {
-		if m.Item(name).Radio(a.language == name || name == languageAuto && a.language == "").Chosen() {
+		label := locales.PlainText()
+		if name == languageAuto {
+			label = locales.AutoDetect()
+		}
+		if m.Item(label).Radio(a.language == name || name == languageAuto && a.language == "").Chosen() {
 			a.setLanguage(name)
 		}
 	}
@@ -91,7 +95,7 @@ func (a *App) languageMenu(m *ui.Menu) {
 			a.setLanguage(name)
 		}
 	}
-	m.Submenu("其他语言", func(m *ui.Menu) {
+	m.Submenu(locales.OtherLanguages(), func(m *ui.Menu) {
 		others := make([]string, 0, len(editor.Languages()))
 		for _, language := range editor.Languages() {
 			common := false

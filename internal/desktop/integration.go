@@ -2,10 +2,10 @@ package desktop
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/Oranjekop/TextViewer/internal/fileassoc"
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
+	"github.com/Oranjekop/TextViewer/locales"
 )
 
 type integrationState struct {
@@ -54,17 +54,17 @@ func applyIntegrations(backend integrationBackend, desired, current integrationS
 	// Reapply enabled entries so an upgrade also repairs stale executable paths.
 	if desired.Associations || current.Associations {
 		if err := backend.Associations(desired.Associations); err != nil {
-			return fmt.Errorf("文件关联设置未完成：%w", err)
+			return locales.WrapError(err, locales.AssociationsFailed)
 		}
 	}
 	if desired.ContextMenu || current.ContextMenu {
 		if err := backend.ContextMenu(desired.ContextMenu, trust); err != nil {
 			if desired.Associations != current.Associations {
 				if rollback := backend.Associations(current.Associations); rollback != nil {
-					err = errors.Join(err, fmt.Errorf("文件关联恢复失败：%w", rollback))
+					err = errors.Join(err, locales.WrapError(rollback, locales.AssociationsRollbackFailed))
 				}
 			}
-			return fmt.Errorf("右键菜单设置未完成：%w", err)
+			return locales.WrapError(err, locales.ContextMenuFailed)
 		}
 	}
 	return nil

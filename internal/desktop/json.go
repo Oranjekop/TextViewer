@@ -2,25 +2,25 @@ package desktop
 
 import (
 	"context"
-	"errors"
 
 	"github.com/Oranjekop/TextViewer/internal/document"
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 )
 
 func (a *App) jsonFormatMenuItem(m *ui.Menu) {
-	if m.Item("格式化 JSON").Shortcut(ui.Ctrl|ui.Shift, ui.KeyJ).Disabled(a.busy != "").Chosen() {
+	if m.Item(locales.FormatJSON()).Shortcut(ui.Ctrl|ui.Shift, ui.KeyJ).Disabled(a.busy != nil).Chosen() {
 		a.formatJSON()
 	}
 }
 
 func (a *App) formatJSON() {
-	if a.busy != "" {
+	if a.busy != nil {
 		return
 	}
 	doc, snapshot := a.doc, a.doc.Buffer.Snapshot()
-	ctx, id := a.startJob("正在格式化 JSON…")
+	ctx, id := a.startJob(locales.FormattingJSON)
 	go func() {
 		text, changed, err := document.FormatJSON(ctx, snapshot)
 		a.Win.Update(func() {
@@ -35,7 +35,7 @@ func (a *App) formatJSON() {
 					if err != nil {
 						a.fail(err)
 					} else {
-						a.status = "JSON 已是格式化状态"
+						a.status = locales.JsonAlreadyFormatted
 					}
 					a.pendingFocus = true
 				})
@@ -44,7 +44,7 @@ func (a *App) formatJSON() {
 			// The final buffer edit also builds its chunk tree. Keep it off the
 			// UI thread; cancellation ends before this single undoable commit.
 			a.cancellable = false
-			a.busy = "正在应用格式化…"
+			a.busy = locales.ApplyingFormat
 			go func() {
 				err := applyJSONFormat(ctx, doc, snapshot, text)
 				a.finishJob(id, func() {
@@ -53,7 +53,7 @@ func (a *App) formatJSON() {
 						return
 					}
 					a.state.Select(0, 0)
-					a.searchStatus, a.status = "", ""
+					a.searchStatus, a.status = nil, nil
 					a.pendingFocus = true
 				})
 			}()
@@ -66,7 +66,7 @@ func applyJSONFormat(ctx context.Context, doc *document.Document, snapshot edito
 		return err
 	}
 	if doc.Buffer.Snapshot() != snapshot {
-		return errors.New("文本或换行格式已改变，请重新执行格式化")
+		return locales.NewError(locales.FormatTextChanged)
 	}
 	doc.Buffer.Set(text)
 	return nil

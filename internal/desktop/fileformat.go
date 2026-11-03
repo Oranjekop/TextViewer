@@ -7,9 +7,9 @@ import (
 
 func (a *App) encodingMenu(m *ui.Menu) {
 	for _, encoding := range []document.Encoding{document.UTF8, document.UTF8BOM, document.UTF16LE, document.UTF16BE, document.GB18030} {
-		if m.Item(string(encoding)).Radio(a.doc.Encoding == encoding).Disabled(a.busy != "").Chosen() {
+		if m.Item(string(encoding)).Radio(a.doc.Encoding == encoding).Disabled(a.busy != nil).Chosen() {
 			a.doc.Encoding = encoding
-			a.status = ""
+			a.status = nil
 			a.pendingFocus = true
 		}
 	}
@@ -27,9 +27,9 @@ func (a *App) lineEndingMenu(m *ui.Menu) {
 		{"Windows (CRLF)", "\r\n"},
 		{"Unix / Linux (LF)", "\n"},
 	} {
-		if m.Item(option.label).Radio(a.doc.Buffer.LineEnding() == option.ending).Disabled(a.busy != "").Chosen() {
+		if m.Item(option.label).Radio(a.doc.Buffer.LineEnding() == option.ending).Disabled(a.busy != nil).Chosen() {
 			a.doc.Buffer.SetLineEnding(option.ending)
-			a.status = ""
+			a.status = nil
 			a.pendingFocus = true
 		}
 	}

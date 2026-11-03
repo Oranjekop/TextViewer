@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/Oranjekop/TextViewer/locales"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,7 +23,7 @@ var Files = []string{"TextViewerShell.dll", "TextViewer.ContextMenu.msix", "Text
 func Read(executable string) (map[string][]byte, error) {
 	reader, err := zip.OpenReader(executable)
 	if err != nil {
-		return nil, fmt.Errorf("缺少内置 Windows 集成资源，请使用 scripts/build.ps1 构建：%w", err)
+		return nil, locales.WrapError(err, locales.MissingBundle)
 	}
 	defer reader.Close()
 	files := make(map[string][]byte, len(Files))

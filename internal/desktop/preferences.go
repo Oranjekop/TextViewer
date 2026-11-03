@@ -11,6 +11,7 @@ type preferences struct {
 	FontSize         int    `json:"fontSize"`
 	Wrap             bool   `json:"wrap"`
 	Theme            string `json:"theme"`
+	Locale           string `json:"locale,omitempty"`
 	AutoCheckUpdates bool   `json:"autoCheckUpdates"`
 	LastUpdateCheck  int64  `json:"lastUpdateCheck,omitempty"`
 	FileAssociations *bool  `json:"fileAssociations,omitempty"`
@@ -36,6 +37,7 @@ func loadPreferences() preferences {
 	if p.Theme != "浅色" && p.Theme != "深色" {
 		p.Theme = "跟随系统"
 	}
+	p.Locale = normalizeLocale(p.Locale)
 	return p
 }
 

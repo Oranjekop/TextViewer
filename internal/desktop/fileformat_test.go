@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Oranjekop/TextViewer/internal/document"
+	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -48,7 +49,7 @@ func TestOutputSettingsMenusMarkMetadataDirty(t *testing.T) {
 
 func TestOutputSettingsCannotChangeDuringJob(t *testing.T) {
 	a := testApp()
-	a.busy = "正在保存…"
+	a.busy = locales.Text("正在保存…")
 	tester := ui.NewTester(a.view, 760, 600)
 	if err := tester.Click("编码"); err != nil {
 		t.Fatal(err)
