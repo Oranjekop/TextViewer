@@ -23,7 +23,10 @@ func (a *App) chooseSettings() {
 	if !a.updateChecking {
 		a.updateMessage, a.updateFailed = nil, false
 	}
-	a.settingsDraft = settingsDraft{Theme: a.settings.Theme, Locale: a.settings.Locale, AutoUpdate: a.settings.AutoCheckUpdates}
+	a.settingsDraft = settingsDraft{
+		Theme: a.settings.Theme, Locale: a.settings.Locale, AutoUpdate: a.settings.AutoCheckUpdates,
+		integrationState: desiredIntegrations(a.settings, integrationState{}),
+	}
 	a.settingsLoadID++
 	id := a.settingsLoadID
 	work := func() {
@@ -37,7 +40,7 @@ func (a *App) chooseSettings() {
 				a.settingsError = err.Error
 				a.settingsReadFailed = true
 			} else {
-				a.settingsDraft.integrationState = state
+				a.settingsDraft.integrationState = desiredIntegrations(a.settings, state)
 				a.settingsDraft.initialIntegration = state
 			}
 		}
