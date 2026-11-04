@@ -33,6 +33,7 @@ type markdownPreview struct {
 	theme     markdown.Theme
 	path      string
 	scroll    ui.ScrollState
+	follow    markdownScrollSync
 }
 
 func (a *App) isMarkdown() bool {
@@ -55,6 +56,7 @@ func (p *markdownPreview) release() {
 	p.source, p.buffer, p.options = "", nil, nil
 	p.due = time.Time{}
 	p.truncated = false
+	p.follow = markdownScrollSync{}
 }
 
 func (a *App) documentView(c *ui.Context) {
@@ -62,6 +64,10 @@ func (a *App) documentView(c *ui.Context) {
 		a.preview.release()
 		a.editorView(c)
 		return
+	}
+	a.preview.update(c, a.doc.Buffer)
+	if a.preview.version == a.doc.Buffer.Version() {
+		a.preview.follow.sync(c, a.state, a.doc.Buffer.Snapshot(), &a.preview.scroll)
 	}
 	ui.SplitPercent(c.Key(fmt.Sprintf("markdown-split-%d", a.id)), &a.preview.split,
 		func() { a.editorView(c) },
@@ -79,10 +85,9 @@ func (a *App) editorView(c *ui.Context) {
 
 func (a *App) markdownView(c *ui.Context) {
 	p := &a.preview
-	p.update(c, a.doc.Buffer)
 	if p.options == nil || p.path != a.doc.Path {
 		p.path = a.doc.Path
-		p.options = &markdown.Options{WrapCode: true}
+		p.options = &markdown.Options{WrapCode: true, Block: p.follow.block}
 		if p.path != "" {
 			p.options.LoadImage = previewFileImages(filepath.Dir(p.path))
 		}
@@ -91,8 +96,11 @@ func (a *App) markdownView(c *ui.Context) {
 	p.options.Theme = &p.theme
 	ui.Scroll(c.Key(fmt.Sprintf("markdown-preview-%d", a.id))).TrackScroll(&p.scroll).
 		Fill().Label(locales.MarkdownPreviewArea()).Children(func() {
-		ui.Column(c).FillWidth().Padding(20, 24).Children(func() {
-			markdown.View(c.Key("content"), p.source, p.options).FillWidth()
+		content := ui.Column(c).FillWidth().Padding(20, 24)
+		p.follow.begin(content.Bounds())
+		content.Children(func() {
+			body := markdown.View(c.Key("content"), p.source, p.options).FillWidth()
+			p.follow.end(c, len(p.source), body.Bounds())
 			if p.truncated {
 				ui.Text(c, locales.MarkdownPreviewTruncated()).FillWidth().
 					FontSize(12).TextColor(c.Theme().TextMuted).Margin(16, 0, 0, 0)
@@ -106,6 +114,7 @@ func (p *markdownPreview) update(c *ui.Context, buffer *editor.Buffer) {
 	if p.buffer != buffer {
 		p.buffer, p.seen, p.version = buffer, version, version
 		p.source, p.truncated = markdownPreviewText(buffer.Snapshot())
+		p.follow.invalidate()
 		p.due = time.Time{}
 		return
 	}
@@ -120,6 +129,7 @@ func (p *markdownPreview) update(c *ui.Context, buffer *editor.Buffer) {
 		return
 	}
 	p.source, p.truncated = markdownPreviewText(buffer.Snapshot())
+	p.follow.invalidate()
 	p.version, p.due = version, time.Time{}
 }
 
