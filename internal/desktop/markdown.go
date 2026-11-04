@@ -60,6 +60,7 @@ func (p *markdownPreview) release() {
 }
 
 func (a *App) documentView(c *ui.Context) {
+	a.wheel.frame(c, a.state)
 	if !a.isMarkdown() || !a.preview.open {
 		a.preview.release()
 		a.editorView(c)
@@ -94,7 +95,7 @@ func (a *App) markdownView(c *ui.Context) {
 	}
 	p.theme.Font, p.theme.CodeFont, p.theme.FontSize = a.settings.FontFamily, a.settings.FontFamily, a.state.Font.Size
 	p.options.Theme = &p.theme
-	ui.Scroll(c.Key(fmt.Sprintf("markdown-preview-%d", a.id))).TrackScroll(&p.scroll).
+	ui.Scroll(c.Key(fmt.Sprintf("markdown-preview-%d", a.id))).TrackScroll(&p.scroll).HandleInput(a.previewInput).
 		Fill().Label(locales.MarkdownPreviewArea()).Children(func() {
 		content := ui.Column(c).FillWidth().Padding(20, 24)
 		p.follow.begin(content.Bounds())

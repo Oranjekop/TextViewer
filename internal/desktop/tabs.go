@@ -20,6 +20,7 @@ type documentTab struct {
 	untitled     int
 	doc          *document.Document
 	state        *editor.State
+	wheel        editorWheel
 	language     string
 	column       columnCache
 	searchStatus locales.Message
@@ -47,6 +48,7 @@ func (tab *documentTab) tooltip() string {
 
 func (a *App) addDocument(doc *document.Document) {
 	if a.documentTab != nil {
+		a.wheel = editorWheel{}
 		a.preview.release()
 	}
 	a.nextTabID++
@@ -73,6 +75,7 @@ func (a *App) activateTab(tab *documentTab) {
 		return
 	}
 	a.preview.release()
+	a.wheel = editorWheel{}
 	a.documentTab = tab
 	a.tabIndex = slices.Index(a.tabs, tab)
 	a.status = nil

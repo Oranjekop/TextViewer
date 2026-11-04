@@ -86,6 +86,7 @@ func New() *App {
 
 func (a *App) resetEditor() {
 	a.clearSearchResult()
+	a.wheel = editorWheel{}
 	a.language = languageAuto
 	a.applyLanguage()
 	a.state = &editor.State{
@@ -98,6 +99,7 @@ func (a *App) resetEditor() {
 		Whitespace:      editor.WhitespaceNone,
 		Label:           locales.EditorArea(),
 		ContextMenu:     a.editMenu,
+		OnInput:         a.documentTab.editorInput,
 		Bindings: []editor.Binding{
 			{Mods: ui.Ctrl, Key: ui.KeyF, Command: editor.NoCommand},
 			{Mods: ui.Ctrl, Key: ui.KeyH, Command: editor.NoCommand},
