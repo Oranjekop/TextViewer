@@ -15,6 +15,7 @@ type settingsDraft struct {
 	Locale     string
 	AutoUpdate bool
 	integrationState
+	initialIntegration integrationState
 }
 
 func (a *App) chooseSettings() {
@@ -37,6 +38,7 @@ func (a *App) chooseSettings() {
 				a.settingsReadFailed = true
 			} else {
 				a.settingsDraft.integrationState = state
+				a.settingsDraft.initialIntegration = state
 			}
 		}
 		if a.Win == nil {
@@ -146,7 +148,7 @@ func (a *App) settingsWindow(c *ui.Context) {
 }
 
 func (a *App) saveSettings(trust bool) {
-	if a.settingsLoading || a.busy != nil {
+	if a.settingsLoading || a.settingsReadFailed || a.busy != nil {
 		return
 	}
 	draft := a.settingsDraft
@@ -157,16 +159,15 @@ func (a *App) saveSettings(trust bool) {
 		a.cancellable = false
 	}
 	work := func() {
-		current, err := a.integration.State()
-		if err == nil {
-			err = applyIntegrations(a.integration, draft.integrationState, current, trust)
-		}
-		var cleanupErr error
-		if err == nil {
-			cleanupErr = a.integration.Cleanup()
+		var err, cleanupErr error
+		if draft.integrationState != draft.initialIntegration {
+			err = applyIntegrations(a.integration, draft.integrationState, draft.initialIntegration, integrationOptions{trust: trust})
+			if err == nil {
+				cleanupErr = a.integration.Cleanup()
+			}
 		}
 		done := func() {
-			if errors.Is(err, shellmenu.ErrTrustRequired) {
+			if !trust && errors.Is(err, shellmenu.ErrTrustRequired) {
 				a.confirmSettingsTrust()
 				return
 			}
@@ -174,6 +175,7 @@ func (a *App) saveSettings(trust bool) {
 				a.settingsError = err.Error
 				return
 			}
+			a.settingsDraft.initialIntegration = draft.integrationState
 			next := a.settings
 			next.Theme, next.AutoCheckUpdates = draft.Theme, draft.AutoUpdate
 			next.Locale = normalizeLocale(draft.Locale)

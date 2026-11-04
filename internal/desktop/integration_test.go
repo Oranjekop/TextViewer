@@ -9,15 +9,19 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/Oranjekop/TextViewer/internal/shellmenu"
+	"github.com/Oranjekop/TextViewer/locales"
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
 type fakeIntegration struct {
-	state      integrationState
-	calls      []string
-	reads      int
-	stateError error
-	menuError  error
+	state         integrationState
+	calls         []string
+	reads         int
+	stateError    error
+	menuError     error
+	lastMenuTrust bool
 }
 
 func (f *fakeIntegration) State() (integrationState, error) {
@@ -31,6 +35,7 @@ func (f *fakeIntegration) Associations(enabled bool) error {
 }
 func (f *fakeIntegration) ContextMenu(enabled, trust bool) error {
 	f.calls = append(f.calls, fmt.Sprintf("menu=%t", enabled))
+	f.lastMenuTrust = trust
 	if f.menuError != nil {
 		return f.menuError
 	}
@@ -109,7 +114,7 @@ func TestSettingsEnableAndInstallerPreservesExistingChoices(t *testing.T) {
 		})
 	}
 	backend := &fakeIntegration{}
-	if err := applyIntegrations(backend, integrationState{true, true}, integrationState{}, false); err != nil {
+	if err := applyIntegrations(backend, integrationState{true, true}, integrationState{}, integrationOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if backend.state != (integrationState{true, true}) {
@@ -124,8 +129,8 @@ func TestSettingsOptionsSaveIndependently(t *testing.T) {
 		want    integrationState
 		calls   []string
 	}{
-		{"remove associations", "关联常用文件格式", integrationState{false, true}, []string{"associations=false", "menu=true", "cleanup"}},
-		{"remove menu", "Windows 右键菜单", integrationState{true, false}, []string{"associations=true", "menu=false", "cleanup"}},
+		{"remove associations", "关联常用文件格式", integrationState{false, true}, []string{"associations=false", "cleanup"}},
+		{"remove menu", "Windows 右键菜单", integrationState{true, false}, []string{"menu=false", "cleanup"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("APPDATA", t.TempDir())
@@ -139,8 +144,8 @@ func TestSettingsOptionsSaveIndependently(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if backend.state != tc.want || !reflect.DeepEqual(backend.calls, tc.calls) {
-				t.Fatalf("saved state %v, calls %v", backend.state, backend.calls)
+			if backend.reads != 1 || backend.state != tc.want || !reflect.DeepEqual(backend.calls, tc.calls) {
+				t.Fatalf("saved state %v, reads %d, calls %v", backend.state, backend.reads, backend.calls)
 			}
 			p := loadPreferences()
 			if p.FileAssociations == nil || p.ContextMenu == nil ||
@@ -151,10 +156,70 @@ func TestSettingsOptionsSaveIndependently(t *testing.T) {
 	}
 }
 
+func TestSettingsSaveWithUnchangedIntegrationSkipsWindowsWork(t *testing.T) {
+	t.Setenv("APPDATA", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	a := testApp()
+	backend := &fakeIntegration{state: integrationState{true, true}}
+	a.integration = backend
+	tester := ui.NewTester(a.view, 760, 600)
+	if err := tester.Click(locales.Settings()); err != nil {
+		t.Fatal(err)
+	}
+	backend.stateError = errors.New("unexpected Windows state query")
+	backend.menuError = shellmenu.ErrTrustRequired
+	for _, label := range []string{locales.AutoUpdate(), locales.SaveSettings()} {
+		if err := tester.Click(label); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if backend.reads != 1 || len(backend.calls) != 0 || len(a.dialogs.(*fakeDialogs).messages) != 0 {
+		t.Fatalf("unrelated save touched Windows integration: reads=%d, calls=%v", backend.reads, backend.calls)
+	}
+	p := loadPreferences()
+	if a.settingsDialog || !p.AutoCheckUpdates || p.ContextMenu == nil || !*p.ContextMenu {
+		t.Fatal("saving unrelated settings did not persist the draft")
+	}
+}
+
+func TestSettingsContextMenuTrustRequiresConfirmation(t *testing.T) {
+	for _, accept := range []bool{false, true} {
+		t.Run(fmt.Sprintf("accept=%t", accept), func(t *testing.T) {
+			t.Setenv("APPDATA", t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			a := testApp()
+			backend := &fakeIntegration{menuError: shellmenu.ErrTrustRequired}
+			a.integration = backend
+			dialogs := a.dialogs.(*fakeDialogs)
+			if accept {
+				dialogs.message = func(mygo.MessageOptions) (mygo.MessageResult, error) {
+					backend.menuError = nil
+					return mygo.MessageResult{Button: 0}, nil
+				}
+			}
+			a.chooseSettings()
+			a.settingsDraft.ContextMenu = true
+			a.saveSettings(false)
+			if backend.reads != 1 || len(dialogs.messages) != 1 || backend.state.ContextMenu != accept ||
+				backend.lastMenuTrust != accept || a.settingsDialog == accept {
+				t.Fatalf("unexpected trust flow: reads=%d, dialogs=%d, state=%v, trust=%v, settings open=%v",
+					backend.reads, len(dialogs.messages), backend.state, backend.lastMenuTrust, a.settingsDialog)
+			}
+			want := []string{"menu=true"}
+			if accept {
+				want = append(want, "menu=true", "cleanup")
+			}
+			if !reflect.DeepEqual(backend.calls, want) {
+				t.Fatalf("calls %v, want %v", backend.calls, want)
+			}
+		})
+	}
+}
+
 func TestFailedMenuChangeRestoresAssociationsAndSkipsCleanup(t *testing.T) {
 	rejected := errors.New("registration rejected")
 	backend := &fakeIntegration{menuError: rejected}
-	err := applyIntegrations(backend, integrationState{true, true}, integrationState{}, false)
+	err := applyIntegrations(backend, integrationState{true, true}, integrationState{}, integrationOptions{})
 	if !errors.Is(err, rejected) || backend.state.Associations {
 		t.Fatalf("failed save left new file associations enabled: %v %v", backend.state, err)
 	}

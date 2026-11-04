@@ -66,15 +66,15 @@ func TestLocaleSettingsSaveCancelAndRestart(t *testing.T) {
 	}
 }
 
-func TestLocaleFailedSaveDoesNotApplyDraft(t *testing.T) {
+func TestLocaleSettingsReadFailurePreventsSave(t *testing.T) {
 	t.Setenv("APPDATA", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	a := testApp()
 	applied := false
 	a.setLocale = func(string) { applied = true }
+	a.integration.(*fakeIntegration).stateError = errors.New("unavailable")
 	a.chooseSettings()
 	a.settingsDraft.Locale = "en"
-	a.integration.(*fakeIntegration).stateError = errors.New("unavailable")
 	a.saveSettings(false)
 	if applied || a.settings.Locale != "" || a.settingsError == nil || !a.settingsDialog {
 		t.Fatal("failed settings operation applied the language draft")

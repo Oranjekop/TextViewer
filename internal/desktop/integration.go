@@ -50,15 +50,19 @@ func (windowsIntegration) ContextMenu(enabled, trust bool) error {
 
 func (windowsIntegration) Cleanup() error { return shellmenu.Cleanup() }
 
-func applyIntegrations(backend integrationBackend, desired, current integrationState, trust bool) error {
-	// Reapply enabled entries so an upgrade also repairs stale executable paths.
-	if desired.Associations || current.Associations {
+type integrationOptions struct {
+	trust          bool
+	refreshEnabled bool
+}
+
+func applyIntegrations(backend integrationBackend, desired, current integrationState, options integrationOptions) error {
+	if desired.Associations != current.Associations || options.refreshEnabled && desired.Associations {
 		if err := backend.Associations(desired.Associations); err != nil {
 			return locales.WrapError(err, locales.AssociationsFailed)
 		}
 	}
-	if desired.ContextMenu || current.ContextMenu {
-		if err := backend.ContextMenu(desired.ContextMenu, trust); err != nil {
+	if desired.ContextMenu != current.ContextMenu || options.refreshEnabled && desired.ContextMenu {
+		if err := backend.ContextMenu(desired.ContextMenu, options.trust); err != nil {
 			if desired.Associations != current.Associations {
 				if rollback := backend.Associations(current.Associations); rollback != nil {
 					err = errors.Join(err, locales.WrapError(rollback, locales.AssociationsRollbackFailed))
@@ -91,7 +95,8 @@ func configureInstalledIntegration(backend integrationBackend, p preferences) er
 	if err != nil {
 		return err
 	}
-	if err := applyIntegrations(backend, desiredIntegrations(p, current), current, false); err != nil {
+	// Refresh enabled entries on upgrade to bind them to the new executable.
+	if err := applyIntegrations(backend, desiredIntegrations(p, current), current, integrationOptions{refreshEnabled: true}); err != nil {
 		return err
 	}
 	return backend.Cleanup()
