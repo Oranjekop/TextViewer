@@ -27,8 +27,14 @@ type markdownScrollSync struct {
 	geometry    bool
 	started     bool
 	editorLeads bool
+	editorInput bool
 	editorY     float64
+	editorLine  int
+	editorOff   float64
 	previewY    float64
+	editorEnd   float64
+	previewEnd  float64
+	limit       int
 }
 
 func (s *markdownScrollSync) invalidate() {
@@ -99,15 +105,22 @@ func (s *markdownScrollSync) sync(c *ui.Context, state *editor.State, text edito
 		return
 	}
 	left, right := state.ScrollY(), float64(preview.Y)
-	leftMoved := math.Abs(left-s.editorY) > markdownScrollTolerance
-	// Content shrinking can clamp the right pane without a user scroll.
-	rightMoved := math.Abs(right-min(s.previewY, float64(preview.MaxY))) > markdownScrollTolerance
-	if !s.started || leftMoved {
+	leftShifted := math.Abs(left-s.editorY) > markdownScrollTolerance
+	leftMoved := leftShifted
+	if leftShifted && s.started {
+		line, off := markdownEditorPlace(state, text, left)
+		// Measuring wrapped lines above the viewport preserves its source
+		// line and offset. That correction must not take over a preview drag.
+		leftMoved = line != s.editorLine || math.Abs(off-s.editorOff) > markdownScrollTolerance
+	}
+	rightMoved := s.previewMoved(preview)
+	if !s.started || s.editorInput || leftMoved && !rightMoved {
 		s.editorLeads = true
 	} else if rightMoved {
 		s.editorLeads = false
 	}
-	if !s.started || leftMoved || rightMoved || s.geometry {
+	if !s.started || leftShifted || rightMoved || s.geometry || s.editorInput {
+		s.scrollRange(state, text, float64(preview.MaxY))
 		if s.editorLeads {
 			target := float32(max(0, min(s.fromEditor(state, text, left), float64(preview.MaxY))))
 			if math.Abs(float64(target)-right) > markdownScrollTolerance {
@@ -121,10 +134,39 @@ func (s *markdownScrollSync) sync(c *ui.Context, state *editor.State, text edito
 				c.Invalidate()
 			}
 		}
+		s.editorLine, s.editorOff = markdownEditorPlace(state, text, state.ScrollY())
 	}
 	// Remember the applied destination too, so it cannot become a new driver.
 	s.editorY, s.previewY = state.ScrollY(), float64(preview.Y)
-	s.started, s.geometry = true, false
+	s.started, s.geometry, s.editorInput = true, false, false
+}
+
+func (s *markdownScrollSync) previewMoved(preview *ui.ScrollState) bool {
+	// Content shrinking can clamp the right pane without a user scroll.
+	return s.started && math.Abs(float64(preview.Y)-min(s.previewY, float64(preview.MaxY))) > markdownScrollTolerance
+}
+
+func markdownEditorPlace(state *editor.State, text editor.Snapshot, y float64) (int, float64) {
+	line := sort.Search(text.LineCount(), func(i int) bool { return state.LineTop(i+1) > y })
+	line = min(line, text.LineCount()-1)
+	return line, y - state.LineTop(line)
+}
+
+func (s *markdownScrollSync) scrollRange(state *editor.State, text editor.Snapshot, previewEnd float64) {
+	// Query the editor's own limit, including wrapped last lines, folding
+	// and horizontal scrollbar space, without changing its visible place.
+	left := state.ScrollY()
+	state.SetScrollY(math.MaxFloat64)
+	editorEnd := state.ScrollY()
+	state.SetScrollY(left)
+	last := s.anchors[len(s.anchors)-1]
+	s.editorEnd = min(editorEnd, markdownSourceY(state, text, last.offset))
+	s.previewEnd = previewEnd
+	// Keep content anchors that both viewports can reach. Interpolate the
+	// remaining tail to their actual ends, so neither side stops early.
+	s.limit = sort.Search(len(s.anchors), func(i int) bool {
+		return s.anchors[i].y >= previewEnd || markdownSourceY(state, text, s.anchors[i].offset) >= s.editorEnd
+	})
 }
 
 func markdownSourceY(state *editor.State, text editor.Snapshot, offset int) float64 {
@@ -140,29 +182,45 @@ func markdownSourceY(state *editor.State, text editor.Snapshot, offset int) floa
 }
 
 func (s *markdownScrollSync) fromEditor(state *editor.State, text editor.Snapshot, y float64) float64 {
-	index := sort.Search(len(s.anchors), func(i int) bool {
+	if s.editorEnd <= 0 || s.previewEnd <= 0 {
+		return 0
+	}
+	if y >= s.editorEnd {
+		return s.previewEnd
+	}
+	index := sort.Search(s.limit, func(i int) bool {
 		return markdownSourceY(state, text, s.anchors[i].offset) >= y
 	})
 	if index == 0 {
-		return s.anchors[0].y
+		return 0
 	}
-	if index == len(s.anchors) {
-		return s.anchors[index-1].y
+	before := s.anchors[index-1]
+	if index == s.limit {
+		return markdownInterpolate(y, markdownSourceY(state, text, before.offset),
+			s.editorEnd, before.y, s.previewEnd)
 	}
-	before, after := s.anchors[index-1], s.anchors[index]
+	after := s.anchors[index]
 	return markdownInterpolate(y, markdownSourceY(state, text, before.offset),
 		markdownSourceY(state, text, after.offset), before.y, after.y)
 }
 
 func (s *markdownScrollSync) toEditor(state *editor.State, text editor.Snapshot, y float64) float64 {
-	index := sort.Search(len(s.anchors), func(i int) bool { return s.anchors[i].y >= y })
+	if s.editorEnd <= 0 || s.previewEnd <= 0 {
+		return 0
+	}
+	if y >= s.previewEnd {
+		return s.editorEnd
+	}
+	index := sort.Search(s.limit, func(i int) bool { return s.anchors[i].y >= y })
 	if index == 0 {
-		return markdownSourceY(state, text, s.anchors[0].offset)
+		return 0
 	}
-	if index == len(s.anchors) {
-		return markdownSourceY(state, text, s.anchors[index-1].offset)
+	before := s.anchors[index-1]
+	if index == s.limit {
+		return markdownInterpolate(y, before.y, s.previewEnd,
+			markdownSourceY(state, text, before.offset), s.editorEnd)
 	}
-	before, after := s.anchors[index-1], s.anchors[index]
+	after := s.anchors[index]
 	return markdownInterpolate(y, before.y, after.y, markdownSourceY(state, text, before.offset),
 		markdownSourceY(state, text, after.offset))
 }

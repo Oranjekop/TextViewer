@@ -60,6 +60,9 @@ func (p *markdownPreview) release() {
 }
 
 func (a *App) documentView(c *ui.Context) {
+	if !a.preview.follow.editorInput && a.preview.follow.previewMoved(&a.preview.scroll) {
+		a.wheel.active = false
+	}
 	a.wheel.frame(c, a.state)
 	if !a.isMarkdown() || !a.preview.open {
 		a.preview.release()
@@ -73,11 +76,14 @@ func (a *App) documentView(c *ui.Context) {
 	ui.SplitPercent(c.Key(fmt.Sprintf("markdown-split-%d", a.id)), &a.preview.split,
 		func() { a.editorView(c) },
 		func() { a.markdownView(c) },
-	).Fill()
+	).FillWidth().Grow(1).MinHeight(0)
 }
 
 func (a *App) editorView(c *ui.Context) {
 	in := editor.View(c.Key(fmt.Sprintf("document-%d", a.id)), a.state).Fill().Bind(&a.editor)
+	if in.PressedOutside() {
+		a.wheel.active = false
+	}
 	if a.pendingFocus {
 		in.Focus()
 		a.pendingFocus = false

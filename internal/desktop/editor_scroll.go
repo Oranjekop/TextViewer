@@ -24,6 +24,14 @@ type editorWheel struct {
 func (tab *documentTab) editorInput(ev ui.InputEvent) bool {
 	s := &tab.wheel
 	switch ev.Kind {
+	case ui.InputPointerDown, ui.InputScroll, ui.InputKeyDown, ui.InputText, ui.InputCompose, ui.InputCommand, ui.InputSelect, ui.InputZoom:
+		tab.preview.follow.editorInput = true
+	case ui.InputPointerMove:
+		if s.pressed && ev.Button == 0 {
+			tab.preview.follow.editorInput = true
+		}
+	}
+	switch ev.Kind {
 	case ui.InputPointerDown:
 		s.pressed = ev.Button == 0
 	case ui.InputPointerUp:
@@ -83,7 +91,7 @@ func (s *editorWheel) frame(c *ui.Context, state *editor.State) {
 }
 
 func (a *App) previewInput(ev ui.InputEvent) bool {
-	if ev.Kind == ui.InputScroll {
+	if ev.Kind == ui.InputScroll || ev.Kind == ui.InputPointerDown {
 		a.wheel.active = false
 	}
 	return false
