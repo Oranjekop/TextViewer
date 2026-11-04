@@ -11,7 +11,7 @@ import (
 )
 
 func TestToolbarIconsAreValidSVGs(t *testing.T) {
-	if len(toolbarIcons) != 16 {
+	if len(toolbarIcons) != 17 {
 		t.Fatalf("got %d icons", len(toolbarIcons))
 	}
 	for name, icon := range toolbarIcons {

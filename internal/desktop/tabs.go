@@ -25,6 +25,7 @@ type documentTab struct {
 	searchStatus locales.Message
 	searchFailed bool
 	searchResult searchResult
+	preview      markdownPreview
 }
 
 func (tab *documentTab) name() string {
@@ -45,6 +46,9 @@ func (tab *documentTab) tooltip() string {
 }
 
 func (a *App) addDocument(doc *document.Document) {
+	if a.documentTab != nil {
+		a.preview.release()
+	}
 	a.nextTabID++
 	tab := &documentTab{id: a.nextTabID, doc: doc}
 	if doc.Path == "" {
@@ -68,6 +72,7 @@ func (a *App) activateTab(tab *documentTab) {
 	if a.busy != nil || a.confirming || tab == a.documentTab || !slices.Contains(a.tabs, tab) {
 		return
 	}
+	a.preview.release()
 	a.documentTab = tab
 	a.tabIndex = slices.Index(a.tabs, tab)
 	a.status = nil
@@ -133,6 +138,16 @@ func (a *App) tabBar(c *ui.Context) {
 				choose = a.tabs[a.tabIndex]
 			}
 		})
+		if a.isMarkdown() {
+			preview := tabAction(c, "preview", locales.MarkdownPreview(), locales.MarkdownPreview()+" (Ctrl+Shift+V)").
+				Size(28, 28).Disabled(a.busy != nil || a.confirming)
+			if a.preview.open {
+				preview.Background(t.SurfacePressed).TextColor(t.Accent)
+			}
+			if preview.Clicked() {
+				a.toggleMarkdownPreview()
+			}
+		}
 		if len(a.tabs) > 1 {
 			tabAction(c, "chevron-down", locales.TabList(), locales.OpenFiles()).Size(28, 28).
 				Disabled(a.busy != nil).Menu(a.tabMenu)
@@ -190,6 +205,7 @@ func (a *App) removeTab(tab *documentTab) {
 	if index < 0 {
 		return
 	}
+	tab.preview.release()
 	a.tabs = slices.Delete(a.tabs, index, index+1)
 	if len(a.tabs) == 0 {
 		a.addDocument(document.New())

@@ -105,6 +105,7 @@ func (a *App) resetEditor() {
 			{Mods: ui.Shift, Key: ui.KeyF3, Command: editor.NoCommand},
 		},
 	}
+	a.preview = markdownPreview{open: true, split: 50}
 	a.pendingFocus = true
 }
 
@@ -198,11 +199,7 @@ func (a *App) view(c *ui.Context) {
 		a.state.NoIndentGuides = a.doc.Buffer.Language() == nil
 		a.state.SoftWrap = a.wrap
 		a.state.ReadOnly = a.busy != nil
-		in := editor.View(c.Key(fmt.Sprintf("document-%d", a.documentTab.id)), a.state).Fill().Bind(&a.editor)
-		if a.pendingFocus {
-			in.Focus()
-			a.pendingFocus = false
-		}
+		a.documentView(c)
 		ui.Divider(c)
 		ui.Row(c).Height(30).Padding(0, 14).Gap(18).AlignItems(ui.Center).Background(t.Surface).Children(func() {
 			status := a.status
@@ -307,6 +304,7 @@ func (a *App) shortcuts(c *ui.Context) {
 	c.OnShortcut(ui.Ctrl, ui.KeyF, func() { a.showFind(false) })
 	c.OnShortcut(ui.Ctrl, ui.KeyH, func() { a.showFind(true) })
 	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyJ, a.formatJSON)
+	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyV, a.toggleMarkdownPreview)
 	c.OnShortcut(0, ui.KeyF3, func() { a.find(false) })
 	c.OnShortcut(ui.Shift, ui.KeyF3, func() { a.find(true) })
 	c.OnShortcut(ui.Ctrl, ui.KeyEqual, func() { a.zoom(2) })

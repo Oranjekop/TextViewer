@@ -14,7 +14,7 @@ var toolbarSVG embed.FS
 var toolbarIcons = loadToolbarIcons()
 
 func loadToolbarIcons() map[string]*ui.SVG {
-	names := []string{"file", "open", "save", "save-as", "edit", "undo", "redo", "find", "replace", "wrap", "font", "code", "settings", "chevron-down", "close", "plus"}
+	names := []string{"file", "open", "save", "save-as", "edit", "undo", "redo", "find", "replace", "wrap", "font", "code", "settings", "chevron-down", "close", "plus", "preview"}
 	icons := make(map[string]*ui.SVG, len(names))
 	for _, name := range names {
 		data, err := toolbarSVG.ReadFile("icons/" + name + ".svg")
