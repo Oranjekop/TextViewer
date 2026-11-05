@@ -23,6 +23,7 @@ type documentTab struct {
 	wheel        editorWheel
 	language     string
 	column       columnCache
+	characters   characterCounter
 	searchStatus locales.Message
 	searchFailed bool
 	searchResult searchResult
@@ -54,8 +55,16 @@ func (a *App) addDocument(doc *document.Document) {
 	a.nextTabID++
 	tab := &documentTab{id: a.nextTabID, doc: doc}
 	if doc.Path == "" {
-		a.untitledCount++
-		tab.untitled = a.untitledCount
+		used := make(map[int]bool)
+		for _, existing := range a.tabs {
+			if existing.doc.Path == "" {
+				used[existing.untitled] = true
+			}
+		}
+		tab.untitled = 1
+		for used[tab.untitled] {
+			tab.untitled++
+		}
 	}
 	a.tabs = append(a.tabs, tab)
 	a.tabIndex = len(a.tabs) - 1
@@ -131,7 +140,7 @@ func (a *App) tabBar(c *ui.Context) {
 							label = "* " + label
 						}
 						ui.Text(c, label).SingleLine().Grow(1).MinWidth(0).FontSize(13)
-						if tabAction(c, "close", locales.CloseTabLabel(docTab.name()), locales.CloseTab()+" (Ctrl+W)").Clicked() {
+						if tabAction(c, "close", locales.CloseTabLabel(docTab.name()), locales.CloseTab()+" ("+shortcutText("Ctrl+W")+")").Clicked() {
 							close = docTab
 						}
 					})
@@ -142,7 +151,7 @@ func (a *App) tabBar(c *ui.Context) {
 			}
 		})
 		if a.isMarkdown() {
-			preview := tabAction(c, "preview", locales.MarkdownPreview(), locales.MarkdownPreview()+" (Ctrl+Shift+V)").
+			preview := tabAction(c, "preview", locales.MarkdownPreview(), locales.MarkdownPreview()+" ("+shortcutText("Ctrl+Shift+V")+")").
 				Size(28, 28).Disabled(a.busy != nil || a.confirming)
 			if a.preview.open {
 				preview.Background(t.SurfacePressed).TextColor(t.Accent)
@@ -155,7 +164,7 @@ func (a *App) tabBar(c *ui.Context) {
 			tabAction(c, "chevron-down", locales.TabList(), locales.OpenFiles()).Size(28, 28).
 				Disabled(a.busy != nil).Menu(a.tabMenu)
 		}
-		if tabAction(c, "plus", locales.NewTab(), locales.NewFile()+" (Ctrl+N)").Size(28, 28).Disabled(a.busy != nil).Clicked() {
+		if tabAction(c, "plus", locales.NewTab(), locales.NewFile()+" ("+shortcutText("Ctrl+N")+")").Size(28, 28).Disabled(a.busy != nil).Clicked() {
 			a.newDocument()
 		}
 	})
@@ -209,6 +218,7 @@ func (a *App) removeTab(tab *documentTab) {
 		return
 	}
 	tab.preview.release()
+	tab.characters.release()
 	a.tabs = slices.Delete(a.tabs, index, index+1)
 	if len(a.tabs) == 0 {
 		a.addDocument(document.New())

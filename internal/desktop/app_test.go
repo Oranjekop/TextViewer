@@ -27,11 +27,11 @@ func TestEditorTypingUndoRedo(t *testing.T) {
 	if a.doc.Buffer.String() != "Hello 中文😀" {
 		t.Fatalf("got %q", a.doc.Buffer.String())
 	}
-	tester.Key(ui.Ctrl, ui.KeyZ)
+	tester.Key(ui.Cmd, ui.KeyZ)
 	if a.doc.Buffer.String() != "" {
 		t.Fatalf("undo: %q", a.doc.Buffer.String())
 	}
-	tester.Key(ui.Ctrl, ui.KeyY)
+	tester.Key(ui.Cmd, ui.KeyY)
 	if a.doc.Buffer.String() != "Hello 中文😀" {
 		t.Fatalf("redo: %q", a.doc.Buffer.String())
 	}
@@ -43,7 +43,7 @@ func TestCompactLayoutNoOverlap(t *testing.T) {
 		a.findOpen, a.replacing = true, true
 		tester := ui.NewTester(a.view, width, 600)
 		for _, row := range [][]string{
-			{"文件", "打开", "保存", "另存为", "编辑", "撤销", "重做", "查找", "替换", "自动换行", "字体", "字号", "代码格式", "设置"},
+			{"文件", "打开", "保存", "另存为", "编辑", "撤销", "重做", "查找", "替换", locales.CompareText(), "自动换行", "字体", "字号", "代码格式", "设置"},
 			{"查找内容", "区分大小写", "正则", "转义字符", "上一处", "下一处", "关闭查找"},
 			{"替换内容", "全部替换"},
 		} {
@@ -70,7 +70,7 @@ func TestFindUsesSelectionAndKeepsWrap(t *testing.T) {
 	a.doc.Buffer.Set("hello 中文\nworld")
 	tester := ui.NewTester(a.view, 1000, 700)
 	a.state.Select(6, 12)
-	tester.Key(ui.Ctrl, ui.KeyH)
+	tester.Key(findReplaceShortcut())
 	if !a.findOpen || !a.replacing || a.query != "中文" {
 		t.Fatalf("find state: %v %v %q", a.findOpen, a.replacing, a.query)
 	}

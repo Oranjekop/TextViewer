@@ -10,7 +10,7 @@ import (
 )
 
 func (a *App) jsonFormatMenuItem(m *ui.Menu) {
-	if m.Item(locales.FormatJSON()).Shortcut(ui.Ctrl|ui.Shift, ui.KeyJ).Disabled(a.busy != nil).Chosen() {
+	if m.Item(locales.FormatJSON()).Shortcut(ui.Cmd|ui.Shift, ui.KeyJ).Disabled(a.busy != nil).Chosen() {
 		a.formatJSON()
 	}
 }

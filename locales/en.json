@@ -124,6 +124,9 @@
   "invalidProgramPath": "File associations require a valid absolute application path",
   "appDescription": "TextViewer text editor",
   "documentStats": "{size}  ·  {lines, plural, one {# line} other {# lines}}",
+  "characterCount": "Character count",
+  "characterStats": "{count} characters",
+  "characterCountTip": "Unicode characters, including spaces and line breaks",
   "cursorPosition": "Ln {line}, Col {column}",
   "settingsNotSaved": "Settings were not saved: {detail}",
   "saveChanges": "Save changes to “{name}”?",
@@ -229,5 +232,7 @@
   "previousDifference": "Previous Difference",
   "nextDifference": "Next Difference",
   "closeComparison": "Close Comparison",
-  "comparisonStats": "{hunks, plural, one {# change} other {# changes}}  ·  +{added, number} / −{deleted, number}"
+  "comparisonStats": "{hunks, plural, one {# change} other {# changes}}  ·  +{added, number} / −{deleted, number}",
+  "finderOpen": "Open in TextViewer",
+  "finderQuickAction": "Finder Quick Action"
 }

@@ -91,7 +91,7 @@ func TestOldFontPreferencesAndAutomaticMode(t *testing.T) {
 	if a.settings.FontFamily != "" || a.fontSize != "20" || a.wrap || a.settings.Theme != "深色" {
 		t.Fatal("old preferences were not retained")
 	}
-	if a.editorFont() != "Microsoft YaHei UI" {
+	if a.editorFont() != defaultTextFont() {
 		t.Fatal("plain text automatic font changed")
 	}
 	a.doc.Path = "data.json"
@@ -103,7 +103,7 @@ func TestOldFontPreferencesAndAutomaticMode(t *testing.T) {
 	a.fontDraft = fontAutomatic
 	a.applyFont()
 	restarted := New()
-	if restarted.settings.FontFamily != "" || restarted.editorFont() != "Microsoft YaHei UI" {
+	if restarted.settings.FontFamily != "" || restarted.editorFont() != defaultTextFont() {
 		t.Fatal("automatic font choice did not survive restart")
 	}
 }

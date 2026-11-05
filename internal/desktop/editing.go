@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"context"
+	"runtime"
 	"slices"
 
 	"github.com/Oranjekop/TextViewer/internal/textops"
@@ -11,6 +12,19 @@ import (
 )
 
 func (a *App) commandItem(m *ui.Menu, label string, command editor.Command, mods ui.Modifiers, key ui.Key) {
+	if runtime.GOOS == "darwin" {
+		switch command {
+		case editor.Redo:
+			mods, key = ui.Cmd|ui.Shift, ui.KeyZ
+		case editor.GoToLine, editor.JoinLines:
+			mods = ui.Ctrl
+		case editor.ToggleBlockComment:
+			// MyGo's native binding is a chord, which Menu.Shortcut cannot display.
+			key = 0
+		case editor.SelectLarger, editor.SelectSmaller:
+			mods = ui.Ctrl | ui.Shift
+		}
+	}
 	disabled := a.busy != nil || a.confirming
 	switch command {
 	case editor.Undo:
@@ -73,30 +87,30 @@ func (a *App) runEditorCommand(command editor.Command) {
 }
 
 func (a *App) editingMenu(m *ui.Menu) {
-	a.commandItem(m, locales.Undo(), editor.Undo, ui.Ctrl, ui.KeyZ)
-	a.commandItem(m, locales.Redo(), editor.Redo, ui.Ctrl, ui.KeyY)
+	a.commandItem(m, locales.Undo(), editor.Undo, ui.Cmd, ui.KeyZ)
+	a.commandItem(m, locales.Redo(), editor.Redo, ui.Cmd, ui.KeyY)
 	m.Separator()
-	a.commandItem(m, locales.Cut(), editor.Cut, ui.Ctrl, ui.KeyX)
-	a.commandItem(m, locales.Copy(), editor.Copy, ui.Ctrl, ui.KeyC)
-	a.commandItem(m, locales.Paste(), editor.Paste, ui.Ctrl, ui.KeyV)
+	a.commandItem(m, locales.Cut(), editor.Cut, ui.Cmd, ui.KeyX)
+	a.commandItem(m, locales.Copy(), editor.Copy, ui.Cmd, ui.KeyC)
+	a.commandItem(m, locales.Paste(), editor.Paste, ui.Cmd, ui.KeyV)
 	a.commandItem(m, locales.Delete(), editor.Delete, 0, ui.KeyDelete)
 	m.Separator()
-	a.commandItem(m, locales.SelectAll(), editor.SelectAll, ui.Ctrl, ui.KeyA)
+	a.commandItem(m, locales.SelectAll(), editor.SelectAll, ui.Cmd, ui.KeyA)
 	m.Submenu(locales.Selection(), a.selectionMenu)
 	m.Submenu(locales.LineOperations(), a.lineOperationsMenu)
 	m.Submenu(locales.WhitespaceOperations(), a.whitespaceMenu)
 	m.Submenu(locales.Transform(), a.transformMenu)
 	m.Separator()
-	a.commandItem(m, locales.ToggleComment(), editor.ToggleComment, ui.Ctrl, ui.KeySlash)
-	a.commandItem(m, locales.ToggleBlockComment(), editor.ToggleBlockComment, ui.Ctrl|ui.Shift, ui.KeyA)
+	a.commandItem(m, locales.ToggleComment(), editor.ToggleComment, ui.Cmd, ui.KeySlash)
+	a.commandItem(m, locales.ToggleBlockComment(), editor.ToggleBlockComment, ui.Cmd|ui.Shift, ui.KeyA)
 	m.Separator()
-	if m.Item(locales.Find()).Shortcut(ui.Ctrl, ui.KeyF).Chosen() {
+	if m.Item(locales.Find()).Shortcut(ui.Cmd, ui.KeyF).Chosen() {
 		a.showFind(false)
 	}
-	if m.Item(locales.Replace()).Shortcut(ui.Ctrl, ui.KeyH).Chosen() {
+	if m.Item(locales.Replace()).Shortcut(findReplaceShortcut()).Chosen() {
 		a.showFind(true)
 	}
-	a.commandItem(m, locales.GoToLine(), editor.GoToLine, ui.Ctrl, ui.KeyG)
+	a.commandItem(m, locales.GoToLine(), editor.GoToLine, ui.Cmd, ui.KeyG)
 	m.Separator()
 	a.jsonFormatMenuItem(m)
 	if m.Item(locales.CompareText()).Disabled(a.busy != nil || a.confirming || len(a.tabs) < 2).Chosen() {
@@ -105,28 +119,28 @@ func (a *App) editingMenu(m *ui.Menu) {
 }
 
 func (a *App) selectionMenu(m *ui.Menu) {
-	a.commandItem(m, locales.SelectLine(), editor.SelectLine, ui.Ctrl, ui.KeyL)
-	a.commandItem(m, locales.SelectNextOccurrence(), editor.SelectNext, ui.Ctrl, ui.KeyD)
-	a.commandItem(m, locales.SelectAllOccurrences(), editor.SelectAllMatches, ui.Ctrl|ui.Shift, ui.KeyL)
+	a.commandItem(m, locales.SelectLine(), editor.SelectLine, ui.Cmd, ui.KeyL)
+	a.commandItem(m, locales.SelectNextOccurrence(), editor.SelectNext, ui.Cmd, ui.KeyD)
+	a.commandItem(m, locales.SelectAllOccurrences(), editor.SelectAllMatches, ui.Cmd|ui.Shift, ui.KeyL)
 	m.Separator()
 	a.commandItem(m, locales.ExpandSelection(), editor.SelectLarger, ui.Alt|ui.Shift, ui.KeyRight)
 	a.commandItem(m, locales.ShrinkSelection(), editor.SelectSmaller, ui.Alt|ui.Shift, ui.KeyLeft)
-	a.commandItem(m, locales.AddCursorAbove(), editor.AddCursorAbove, ui.Ctrl|ui.Alt, ui.KeyUp)
-	a.commandItem(m, locales.AddCursorBelow(), editor.AddCursorBelow, ui.Ctrl|ui.Alt, ui.KeyDown)
+	a.commandItem(m, locales.AddCursorAbove(), editor.AddCursorAbove, ui.Cmd|ui.Alt, ui.KeyUp)
+	a.commandItem(m, locales.AddCursorBelow(), editor.AddCursorBelow, ui.Cmd|ui.Alt, ui.KeyDown)
 	a.commandItem(m, locales.SplitIntoLines(), editor.SplitSelectionIntoLines, 0, 0)
 }
 
 func (a *App) lineOperationsMenu(m *ui.Menu) {
 	a.commandItem(m, locales.DuplicateLine(), editor.DuplicateLinesDown, ui.Alt|ui.Shift, ui.KeyDown)
-	a.commandItem(m, locales.DeleteLine(), editor.DeleteLine, ui.Ctrl|ui.Shift, ui.KeyK)
+	a.commandItem(m, locales.DeleteLine(), editor.DeleteLine, ui.Cmd|ui.Shift, ui.KeyK)
 	a.commandItem(m, locales.MoveLineUp(), editor.MoveLinesUp, ui.Alt, ui.KeyUp)
 	a.commandItem(m, locales.MoveLineDown(), editor.MoveLinesDown, ui.Alt, ui.KeyDown)
 	m.Separator()
-	a.commandItem(m, locales.InsertLineAbove(), editor.NewlineAbove, ui.Ctrl|ui.Shift, ui.KeyEnter)
-	a.commandItem(m, locales.InsertLineBelow(), editor.NewlineBelow, ui.Ctrl, ui.KeyEnter)
-	a.commandItem(m, locales.JoinLines(), editor.JoinLines, ui.Ctrl, ui.KeyJ)
-	a.commandItem(m, locales.Indent(), editor.Indent, ui.Ctrl, ui.KeyBracketRight)
-	a.commandItem(m, locales.Outdent(), editor.Outdent, ui.Ctrl, ui.KeyBracketLeft)
+	a.commandItem(m, locales.InsertLineAbove(), editor.NewlineAbove, ui.Cmd|ui.Shift, ui.KeyEnter)
+	a.commandItem(m, locales.InsertLineBelow(), editor.NewlineBelow, ui.Cmd, ui.KeyEnter)
+	a.commandItem(m, locales.JoinLines(), editor.JoinLines, ui.Cmd, ui.KeyJ)
+	a.commandItem(m, locales.Indent(), editor.Indent, ui.Cmd, ui.KeyBracketRight)
+	a.commandItem(m, locales.Outdent(), editor.Outdent, ui.Cmd, ui.KeyBracketLeft)
 	m.Separator()
 	for _, item := range []struct {
 		label string

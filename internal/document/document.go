@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode/utf8"
 
@@ -47,7 +48,9 @@ type SaveState struct {
 
 func New() *Document {
 	b := editor.NewBuffer("")
-	b.SetLineEnding("\r\n")
+	if runtime.GOOS == "windows" {
+		b.SetLineEnding("\r\n")
+	}
 	d := &Document{Encoding: UTF8, Buffer: b}
 	d.Saved = d.CaptureSave()
 	return d

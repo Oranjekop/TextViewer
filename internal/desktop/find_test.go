@@ -63,7 +63,7 @@ func TestSwitchingFromRegexFindToReplacePreservesPattern(t *testing.T) {
 	a.query, a.replacement = `(\w+)=(\d+)`, "$2:$1"
 	a.find(false)
 	tester := ui.NewTester(a.view, 760, 600)
-	tester.Key(ui.Ctrl, ui.KeyH)
+	tester.Key(findReplaceShortcut())
 	if !a.replacing || a.query != `(\w+)=(\d+)` {
 		t.Fatalf("opening replace lost the original pattern: %q", a.query)
 	}

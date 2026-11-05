@@ -144,7 +144,7 @@ func TestSettingsSelectionsSurviveSaveReopenAndRestart(t *testing.T) {
 	}
 	chooseSettingsMenu(t, tester, locales.Appearance(), locales.Dark())
 	chooseSettingsMenu(t, tester, locales.InterfaceLanguage(), "English")
-	for _, label := range []string{locales.AutoUpdate(), locales.FileAssociations(), locales.ContextMenu()} {
+	for _, label := range []string{locales.AutoUpdate(), locales.FileAssociations(), contextMenuLabel()} {
 		if err := tester.Click(label); err != nil {
 			t.Fatal(err)
 		}

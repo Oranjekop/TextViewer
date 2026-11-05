@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"errors"
+	"runtime"
 
 	"github.com/Oranjekop/TextViewer/internal/fileassoc"
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
@@ -85,13 +86,13 @@ func (a *App) settingsWindow(c *ui.Context) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Checkbox(c, &a.settingsDraft.Associations, locales.FileAssociations()).
 				Grow(1).Disabled(a.settingsLoading || a.settingsReadFailed || a.busy != nil)
-			if ui.Button(c, locales.DefaultApps()).Disabled(a.settingsLoading || a.busy != nil || !a.settingsDraft.Associations).Clicked() {
+			if runtime.GOOS != "darwin" && ui.Button(c, locales.DefaultApps()).Disabled(a.settingsLoading || a.busy != nil || !a.settingsDraft.Associations).Clicked() {
 				if err := fileassoc.OpenDefaults(); err != nil {
 					a.settingsError = err.Error
 				}
 			}
 		})
-		ui.Checkbox(c, &a.settingsDraft.ContextMenu, locales.ContextMenu()).
+		ui.Checkbox(c, &a.settingsDraft.ContextMenu, contextMenuLabel()).
 			Disabled(a.settingsLoading || a.settingsReadFailed || a.busy != nil)
 		if a.settingsLoading {
 			ui.Text(c, locales.ReadingSettings()).TextColor(c.Theme().TextMuted)

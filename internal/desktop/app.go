@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -25,7 +26,6 @@ type App struct {
 	tabs               []*documentTab
 	tabIndex           int
 	nextTabID          uint64
-	untitledCount      int
 	revealTab          bool
 	tabWindowWidth     float32
 	dialogs            dialogService
@@ -89,10 +89,13 @@ func New() *App {
 }
 
 func (a *App) resetEditor() {
+	a.characters.release()
+	a.characters = characterCounter{}
 	a.clearSearchResult()
 	a.wheel = editorWheel{}
 	a.language = languageAuto
 	a.applyLanguage()
+	replaceMods, replaceKey := findReplaceShortcut()
 	a.state = &editor.State{
 		Buffer:          a.doc.Buffer,
 		SoftWrap:        a.wrap,
@@ -106,11 +109,19 @@ func (a *App) resetEditor() {
 		OnInput:         a.documentTab.editorInput,
 		OnDefinition:    a.openEditorURL,
 		Bindings: []editor.Binding{
-			{Mods: ui.Ctrl, Key: ui.KeyF, Command: editor.NoCommand},
-			{Mods: ui.Ctrl, Key: ui.KeyH, Command: editor.NoCommand},
+			{Mods: ui.Cmd, Key: ui.KeyF, Command: editor.NoCommand},
+			{Mods: replaceMods, Key: replaceKey, Command: editor.NoCommand},
+			{Mods: ui.Cmd, Key: ui.KeyY, Command: editor.Redo},
 			{Key: ui.KeyF3, Command: editor.NoCommand},
 			{Mods: ui.Shift, Key: ui.KeyF3, Command: editor.NoCommand},
 		},
+	}
+	if runtime.GOOS == "darwin" {
+		a.state.Bindings = append(a.state.Bindings,
+			editor.Binding{Mods: ui.Cmd, Key: ui.KeyG, Command: editor.NoCommand},
+			editor.Binding{Mods: ui.Cmd | ui.Shift, Key: ui.KeyG, Command: editor.NoCommand},
+			editor.Binding{Mods: ui.Cmd | ui.Shift, Key: ui.KeyH, Command: editor.NoCommand},
+		)
 	}
 	a.preview = markdownPreview{open: true, split: 50}
 	a.pendingFocus = true
@@ -123,7 +134,11 @@ func (a *App) Ready() error {
 	a.applyStartupLocale()
 	a.refreshLocale()
 	offLocale := mygo.App.OnLocaleChanged(func(string) { a.refreshLocale() })
-	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{}))
+	if runtime.GOOS == "darwin" {
+		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{{Role: mygo.RoleAppMenu}, {Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu}}))
+	} else {
+		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{}))
+	}
 	a.Win = mygo.NewWindow(mygo.WindowOptions{
 		Title: "TextViewer",
 		Width: 1120, Height: 780,
@@ -155,6 +170,9 @@ func (a *App) Ready() error {
 		a.closed = true
 		a.stopJob()
 		a.stopUpdateCheck()
+		for _, tab := range a.tabs {
+			tab.characters.release()
+		}
 		mygo.App.Quit()
 	})
 	a.Win.OnFileDrop(func(e *mygo.FileDropEvent) {
@@ -228,6 +246,8 @@ func (a *App) view(c *ui.Context) {
 					a.cancel()
 				}
 			}
+			ui.Text(c, locales.CharacterStats(a.characters.text(c, a.doc.Buffer.Snapshot()))).
+				FontSize(12).TextColor(t.TextMuted).Tooltip(locales.CharacterCountTip())
 			pos := a.state.CursorPos()
 			snapshot := a.doc.Buffer.Snapshot()
 			column := a.column.at(snapshot, a.state.Cursor())
@@ -268,10 +288,10 @@ func (a *App) editMenu(m *ui.Menu) {
 		}
 	}
 	m.Separator()
-	if m.Item(locales.Find()).Shortcut(ui.Ctrl, ui.KeyF).Chosen() {
+	if m.Item(locales.Find()).Shortcut(ui.Cmd, ui.KeyF).Chosen() {
 		a.showFind(false)
 	}
-	if m.Item(locales.Replace()).Shortcut(ui.Ctrl, ui.KeyH).Chosen() {
+	if m.Item(locales.Replace()).Shortcut(findReplaceShortcut()).Chosen() {
 		a.showFind(true)
 	}
 	m.Separator()
@@ -279,19 +299,19 @@ func (a *App) editMenu(m *ui.Menu) {
 }
 
 func (a *App) fileMenu(m *ui.Menu) {
-	if m.Item(locales.NewFile()).Shortcut(ui.Ctrl, ui.KeyN).Disabled(a.busy != nil).Chosen() {
+	if m.Item(locales.NewFile()).Shortcut(ui.Cmd, ui.KeyN).Disabled(a.busy != nil).Chosen() {
 		a.newDocument()
 	}
-	if m.Item(locales.OpenMenu()).Shortcut(ui.Ctrl, ui.KeyO).Disabled(a.busy != nil).Chosen() {
+	if m.Item(locales.OpenMenu()).Shortcut(ui.Cmd, ui.KeyO).Disabled(a.busy != nil).Chosen() {
 		a.chooseOpen()
 	}
-	if m.Item(locales.Save()).Shortcut(ui.Ctrl, ui.KeyS).Disabled(a.busy != nil).Chosen() {
+	if m.Item(locales.Save()).Shortcut(ui.Cmd, ui.KeyS).Disabled(a.busy != nil).Chosen() {
 		a.save(false, nil)
 	}
-	if m.Item(locales.SaveAsMenu()).Shortcut(ui.Ctrl|ui.Shift, ui.KeyS).Disabled(a.busy != nil).Chosen() {
+	if m.Item(locales.SaveAsMenu()).Shortcut(ui.Cmd|ui.Shift, ui.KeyS).Disabled(a.busy != nil).Chosen() {
 		a.save(true, nil)
 	}
-	if m.Item(locales.CloseTab()).Shortcut(ui.Ctrl, ui.KeyW).Disabled(a.busy != nil).Chosen() {
+	if m.Item(locales.CloseTab()).Shortcut(ui.Cmd, ui.KeyW).Disabled(a.busy != nil).Chosen() {
 		a.closeTab(a.documentTab)
 	}
 	m.Separator()
@@ -304,25 +324,31 @@ func (a *App) shortcuts(c *ui.Context) {
 	if a.fontDialog || a.settingsDialog || a.compareDialog {
 		return
 	}
-	c.OnShortcut(ui.Ctrl, ui.KeyO, a.chooseOpen)
-	c.OnShortcut(ui.Ctrl, ui.KeyN, a.newDocument)
-	c.OnShortcut(ui.Ctrl, ui.KeyS, func() { a.save(false, nil) })
-	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyS, func() { a.save(true, nil) })
-	c.OnShortcut(ui.Ctrl, ui.KeyW, func() { a.closeTab(a.documentTab) })
+	c.OnShortcut(ui.Cmd, ui.KeyO, a.chooseOpen)
+	c.OnShortcut(ui.Cmd, ui.KeyN, a.newDocument)
+	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.save(false, nil) })
+	c.OnShortcut(ui.Cmd|ui.Shift, ui.KeyS, func() { a.save(true, nil) })
+	c.OnShortcut(ui.Cmd, ui.KeyW, func() { a.closeTab(a.documentTab) })
 	c.OnShortcut(ui.Ctrl, ui.KeyTab, func() { a.nextTab(1) })
 	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyTab, func() { a.nextTab(-1) })
-	c.OnShortcut(ui.Ctrl, ui.KeyPageDown, func() { a.nextTab(1) })
-	c.OnShortcut(ui.Ctrl, ui.KeyPageUp, func() { a.nextTab(-1) })
-	c.OnShortcut(ui.Ctrl, ui.KeyF, func() { a.showFind(false) })
-	c.OnShortcut(ui.Ctrl, ui.KeyH, func() { a.showFind(true) })
-	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyJ, a.formatJSON)
-	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyV, a.toggleMarkdownPreview)
+	c.OnShortcut(ui.Cmd, ui.KeyPageDown, func() { a.nextTab(1) })
+	c.OnShortcut(ui.Cmd, ui.KeyPageUp, func() { a.nextTab(-1) })
+	c.OnShortcut(ui.Cmd, ui.KeyF, func() { a.showFind(false) })
+	replaceMods, replaceKey := findReplaceShortcut()
+	c.OnShortcut(replaceMods, replaceKey, func() { a.showFind(true) })
+	c.OnShortcut(ui.Cmd|ui.Shift, ui.KeyJ, a.formatJSON)
+	c.OnShortcut(ui.Cmd|ui.Shift, ui.KeyV, a.toggleMarkdownPreview)
 	c.OnShortcut(0, ui.KeyF3, func() { a.find(false) })
 	c.OnShortcut(ui.Shift, ui.KeyF3, func() { a.find(true) })
-	c.OnShortcut(ui.Ctrl, ui.KeyEqual, func() { a.zoom(2) })
-	c.OnShortcut(ui.Ctrl|ui.Shift, ui.KeyEqual, func() { a.zoom(2) })
-	c.OnShortcut(ui.Ctrl, ui.KeyMinus, func() { a.zoom(-2) })
-	c.OnShortcut(ui.Ctrl, ui.Key0, func() { a.fontSize = "16"; a.persistPreferences() })
+	if runtime.GOOS == "darwin" {
+		c.OnShortcut(ui.Cmd, ui.KeyG, func() { a.find(false) })
+		c.OnShortcut(ui.Cmd|ui.Shift, ui.KeyG, func() { a.find(true) })
+		c.OnShortcut(ui.Cmd|ui.Shift, ui.KeyH, func() { a.showFind(true) })
+	}
+	c.OnShortcut(ui.Cmd, ui.KeyEqual, func() { a.zoom(2) })
+	c.OnShortcut(ui.Cmd|ui.Shift, ui.KeyEqual, func() { a.zoom(2) })
+	c.OnShortcut(ui.Cmd, ui.KeyMinus, func() { a.zoom(-2) })
+	c.OnShortcut(ui.Cmd, ui.Key0, func() { a.fontSize = "16"; a.persistPreferences() })
 	c.OnShortcut(ui.Alt, ui.KeyZ, func() { a.wrap = !a.wrap; a.persistPreferences() })
 	if a.findOpen {
 		c.OnShortcut(0, ui.KeyEscape, func() { a.findOpen = false; a.editor.Focus() })

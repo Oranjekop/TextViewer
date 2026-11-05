@@ -26,7 +26,7 @@ func (a *App) editorFont() string {
 	if a.doc.Buffer.Language() != nil {
 		return "monospace"
 	}
-	return "Microsoft YaHei UI"
+	return defaultTextFont()
 }
 
 func (a *App) chooseFont() {
@@ -69,7 +69,7 @@ func (a *App) fontChooser(c *ui.Context) {
 		family := a.fontDraft
 		if family == fontAutomatic {
 			if a.doc.Buffer.Language() == nil {
-				family = "Microsoft YaHei UI"
+				family = defaultTextFont()
 			} else {
 				family = "monospace"
 			}

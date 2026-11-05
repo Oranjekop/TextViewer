@@ -142,7 +142,7 @@ func TestEditorWheelYieldsToNavigationAndEditing(t *testing.T) {
 		name string
 		run  func(*App, *ui.Tester, ui.Rect)
 	}{
-		{"keyboard", func(a *App, tt *ui.Tester, _ ui.Rect) { tt.Key(ui.Ctrl, ui.KeyEnd) }},
+		{"keyboard", func(a *App, tt *ui.Tester, _ ui.Rect) { tt.Key(ui.Cmd, ui.KeyEnd) }},
 		{"pointer", func(a *App, tt *ui.Tester, pane ui.Rect) { tt.ClickAt(pane.X+140, pane.Y+80) }},
 		{"selection", func(a *App, tt *ui.Tester, _ ui.Rect) { a.state.Select(2000, 2010) }},
 		{"programmatic scroll", func(a *App, tt *ui.Tester, _ ui.Rect) { a.state.ScrollTo(100) }},

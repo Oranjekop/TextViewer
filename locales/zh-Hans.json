@@ -124,6 +124,9 @@
   "invalidProgramPath": "文件关联需要有效的程序绝对路径",
   "appDescription": "TextViewer 文本编辑器",
   "documentStats": "{size}  ·  {lines, number} 行",
+  "characterCount": "字符数",
+  "characterStats": "{count} 字符",
+  "characterCountTip": "按 Unicode 字符统计，包含空格与换行",
   "cursorPosition": "行 {line}，列 {column}",
   "settingsNotSaved": "设置未保存：{detail}",
   "saveChanges": "是否保存对“{name}”的修改？",
@@ -229,5 +232,7 @@
   "previousDifference": "上一处差异",
   "nextDifference": "下一处差异",
   "closeComparison": "关闭对比",
-  "comparisonStats": "{hunks, number} 处差异  ·  +{added, number} / −{deleted, number}"
+  "comparisonStats": "{hunks, number} 处差异  ·  +{added, number} / −{deleted, number}",
+  "finderOpen": "在 TextViewer 中打开",
+  "finderQuickAction": "Finder 快速操作"
 }

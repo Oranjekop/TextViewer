@@ -36,7 +36,12 @@ func (r *requestLog) snapshot() []string {
 }
 
 func testClient(t *testing.T, mutate func(*Release), badPayload bool) (*Client, *Release, *requestLog) {
+	return testPlatformClient(t, "windows", mutate, badPayload)
+}
+
+func testPlatformClient(t *testing.T, platform string, mutate func(*Release), badPayload bool) (*Client, *Release, *requestLog) {
 	t.Helper()
+	name := releaseinfo.InstallerNameFor("0.0.2", platform)
 	payload := []byte("MZTextViewer installer fixture")
 	digest := sha256.Sum256(payload)
 	sum := hex.EncodeToString(digest[:])
@@ -49,8 +54,8 @@ func testClient(t *testing.T, mutate func(*Release), badPayload bool) (*Client, 
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(release)
 		case strings.HasSuffix(r.URL.Path, "/SHA256SUMS.txt"):
-			fmt.Fprintf(w, "%s  %s\n", sum, releaseinfo.InstallerName("0.0.2"))
-		case strings.HasSuffix(r.URL.Path, ".exe"):
+			fmt.Fprintf(w, "%s  %s\n", sum, name)
+		case strings.HasSuffix(r.URL.Path, "/"+name):
 			if badPayload {
 				w.Write([]byte("corrupt installer"))
 			} else {
@@ -62,6 +67,7 @@ func testClient(t *testing.T, mutate func(*Release), badPayload bool) (*Client, 
 	}))
 	t.Cleanup(server.Close)
 	client := NewClient()
+	client.platform = platform
 	client.http.Transport = server.Client().Transport
 	client.latestURL = server.URL + "/latest"
 	client.repository = server.URL + "/" + releaseinfo.Repository
@@ -70,7 +76,7 @@ func testClient(t *testing.T, mutate func(*Release), badPayload bool) (*Client, 
 	release = Release{
 		Tag: "v0.0.2", Version: "0.0.2", Notes: "Test release",
 		Assets: []Asset{
-			{Name: releaseinfo.InstallerName("0.0.2"), URL: base + releaseinfo.InstallerName("0.0.2"), Size: int64(len(payload)), Digest: "sha256:" + sum},
+			{Name: name, URL: base + name, Size: int64(len(payload)), Digest: "sha256:" + sum},
 			{Name: "SHA256SUMS.txt", URL: base + "SHA256SUMS.txt", Size: 200},
 		},
 	}
@@ -78,6 +84,37 @@ func testClient(t *testing.T, mutate func(*Release), badPayload bool) (*Client, 
 		mutate(&release)
 	}
 	return client, &release, requests
+}
+
+func TestMacUpdateDownloadsOneUniversalPackage(t *testing.T) {
+	client, _, requests := testPlatformClient(t, "darwin", nil, false)
+	release, err := client.Check(context.Background(), "0.0.1")
+	if err != nil || release == nil {
+		t.Fatalf("macOS check: %v", err)
+	}
+	installer, err := client.Download(context.Background(), release, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Ext(installer.Path) != ".pkg" {
+		t.Fatalf("macOS installer: %s", installer.Path)
+	}
+	if err := installer.Verify(); err != nil {
+		t.Fatal(err)
+	}
+	paths := requests.snapshot()
+	if len(paths) != 3 || !strings.HasSuffix(paths[2], "-macos-universal.pkg") {
+		t.Fatalf("unexpected download requests: %v", paths)
+	}
+	client.platform = "windows"
+	if _, _, err := client.assets(release); err == nil {
+		t.Fatal("Windows accepted a macOS package")
+	}
+	client.platform = "darwin"
+	release.Assets[0].Name = strings.ReplaceAll(release.Assets[0].Name, "universal", "arm64")
+	if _, _, err := client.assets(release); err == nil {
+		t.Fatal("accepted a package without both architectures")
+	}
 }
 
 func TestCheckAndDownloadVerifiedInstaller(t *testing.T) {

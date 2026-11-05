@@ -24,6 +24,35 @@ func desktopFile(t *testing.T, name, contents string) string {
 	return path
 }
 
+func TestUntitledNamesReuseClosedAndSavedSlots(t *testing.T) {
+	a := testApp()
+	for range 6 {
+		old := a.documentTab.id
+		a.closeTab(a.documentTab)
+		if len(a.tabs) != 1 || a.untitled != 1 || a.id == old {
+			t.Fatalf("last empty tab: %q id=%d", a.name(), a.id)
+		}
+	}
+	first := a.documentTab
+	a.newDocument()
+	second := a.documentTab
+	a.newDocument()
+	third := a.documentTab
+	if first.untitled != 1 || second.untitled != 2 || third.untitled != 3 {
+		t.Fatal("simultaneous empty tabs must have distinct names")
+	}
+	a.closeTab(second)
+	a.newDocument()
+	if a.untitled != 2 || first.untitled != 1 || third.untitled != 3 {
+		t.Fatal("closed slot not reused or existing tabs were renamed")
+	}
+	first.doc.Path = "saved.txt"
+	a.newDocument()
+	if a.untitled != 1 {
+		t.Fatal("saved file retained the unnamed slot")
+	}
+}
+
 func TestOpenMultipleFilesPreservesExistingEditsAndReusesOpenTabs(t *testing.T) {
 	a := testApp()
 	a.doc.Buffer.Set("unsaved text")
@@ -91,7 +120,7 @@ func TestTabSwitchPreservesCursorScrollUndoAndLanguage(t *testing.T) {
 	tester.Frame()
 	firstCursor, firstScroll := first.state.Cursor(), first.state.ScrollY()
 	firstSnapshot := first.doc.Buffer.Snapshot()
-	tester.Key(ui.Ctrl, ui.KeyN)
+	tester.Key(ui.Cmd, ui.KeyN)
 	second := a.documentTab
 	if second == first || len(a.tabs) != 2 {
 		t.Fatal("Ctrl+N did not create another tab")
@@ -106,11 +135,11 @@ func TestTabSwitchPreservesCursorScrollUndoAndLanguage(t *testing.T) {
 	if err := tester.Click("标签：" + second.name()); err != nil {
 		t.Fatal(err)
 	}
-	tester.Key(ui.Ctrl, ui.KeyZ)
+	tester.Key(ui.Cmd, ui.KeyZ)
 	if a.documentTab != second || a.doc.Buffer.String() != "" || first.doc.Buffer.Snapshot() != firstSnapshot {
 		t.Fatal("undo affected a different tab")
 	}
-	tester.Key(ui.Ctrl, ui.KeyY)
+	tester.Key(ui.Cmd, ui.KeyY)
 	if a.doc.Buffer.String() != "second document" {
 		t.Fatal("tab switch lost redo history")
 	}
@@ -121,7 +150,7 @@ func TestCloseTabCancelSaveAndLastTab(t *testing.T) {
 	a.doc.Buffer.Set("keep this")
 	first := a.documentTab
 	tester := ui.NewTester(a.view, 760, 600)
-	tester.Key(ui.Ctrl, ui.KeyW)
+	tester.Key(ui.Cmd, ui.KeyW)
 	if len(a.tabs) != 1 || a.documentTab != first || a.doc.Buffer.String() != "keep this" {
 		t.Fatal("canceling close discarded edits")
 	}
@@ -131,7 +160,7 @@ func TestCloseTabCancelSaveAndLastTab(t *testing.T) {
 		return mygo.MessageResult{Button: 0}, nil
 	}
 	dialogs.save = func(mygo.SaveDialogOptions) (string, error) { return path, nil }
-	tester.Key(ui.Ctrl, ui.KeyW)
+	tester.Key(ui.Cmd, ui.KeyW)
 	got, err := os.ReadFile(path)
 	if err != nil || string(got) != "keep this" {
 		t.Fatalf("close did not save before removing tab: %q %v", got, err)
@@ -196,7 +225,7 @@ func TestTabsCannotChangeDuringDocumentOperation(t *testing.T) {
 	_, id := a.startJob(locales.FormattingJSON)
 	tester := ui.NewTester(a.view, 760, 600)
 	tester.Key(ui.Ctrl, ui.KeyTab)
-	tester.Key(ui.Ctrl, ui.KeyN)
+	tester.Key(ui.Cmd, ui.KeyN)
 	for _, label := range []string{"标签：" + first.name(), "关闭标签：" + active.name(), "新建标签"} {
 		if err := tester.Click(label); err != nil {
 			t.Fatal(err)
@@ -434,12 +463,12 @@ func TestSaveAsCancelAndOpenTargetDoNotChangeDocuments(t *testing.T) {
 	a.doc.Buffer.Set("edited second")
 	before := a.doc.Buffer.Snapshot()
 	tester := ui.NewTester(a.view, 760, 600)
-	tester.Key(ui.Ctrl|ui.Shift, ui.KeyS)
+	tester.Key(ui.Cmd|ui.Shift, ui.KeyS)
 	if !document.SamePath(a.doc.Path, second) || a.doc.Buffer.Snapshot() != before || !a.doc.Dirty() {
 		t.Fatal("canceling save as changed the active document")
 	}
 	a.dialogs.(*fakeDialogs).save = func(mygo.SaveDialogOptions) (string, error) { return first, nil }
-	tester.Key(ui.Ctrl|ui.Shift, ui.KeyS)
+	tester.Key(ui.Cmd|ui.Shift, ui.KeyS)
 	firstBytes, _ := os.ReadFile(first)
 	if string(firstBytes) != "first" || !document.SamePath(a.doc.Path, second) ||
 		a.doc.Buffer.Snapshot() != before || len(a.dialogs.(*fakeDialogs).messages) != 1 {

@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -262,7 +263,11 @@ func TestLocaleLayoutAndPreview(t *testing.T) {
 				a.settingsReadFailed = true
 				a.updateMessage = func() string { return locales.UpToDate("0.0.9") }
 				tester.Frame()
-				for _, label := range []string{locales.Appearance(), locales.InterfaceLanguage(), locales.FileAssociations(), locales.DefaultApps(), locales.ContextMenu(), locales.Retry(), locales.CheckUpdates(), locales.Cancel(), locales.SaveSettings()} {
+				labels := []string{locales.Appearance(), locales.InterfaceLanguage(), locales.FileAssociations(), contextMenuLabel(), locales.Retry(), locales.CheckUpdates(), locales.Cancel(), locales.SaveSettings()}
+				if runtime.GOOS != "darwin" {
+					labels = append(labels, locales.DefaultApps())
+				}
+				for _, label := range labels {
 					rect, ok := tester.Find(label)
 					if !ok || rect.W == 0 || rect.H == 0 || rect.X < 0 || rect.Y < 0 || rect.X+rect.W > 760 || rect.Y+rect.H > 420 {
 						t.Fatalf("%s %s scale %g: %q outside minimum window: %+v", tag, theme, scale, label, rect)

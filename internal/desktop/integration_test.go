@@ -60,7 +60,7 @@ func TestSettingsCheckboxesApplyOnlyOnSaveAndPersistOptOut(t *testing.T) {
 	if !a.settingsDraft.Associations || !a.settingsDraft.ContextMenu {
 		t.Fatal("checkboxes did not reflect the registered state")
 	}
-	for _, name := range []string{"关联常用文件格式", "Windows 右键菜单", "取消"} {
+	for _, name := range []string{"关联常用文件格式", contextMenuLabel(), "取消"} {
 		if err := tester.Click(name); err != nil {
 			t.Fatal(err)
 		}
@@ -71,7 +71,7 @@ func TestSettingsCheckboxesApplyOnlyOnSaveAndPersistOptOut(t *testing.T) {
 	if err := tester.Click("设置"); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"关联常用文件格式", "Windows 右键菜单", "保存设置"} {
+	for _, name := range []string{"关联常用文件格式", contextMenuLabel(), "保存设置"} {
 		if err := tester.Click(name); err != nil {
 			t.Fatal(err)
 		}
@@ -130,7 +130,7 @@ func TestSettingsOptionsSaveIndependently(t *testing.T) {
 		calls   []string
 	}{
 		{"remove associations", "关联常用文件格式", integrationState{false, true}, []string{"associations=false", "cleanup"}},
-		{"remove menu", "Windows 右键菜单", integrationState{true, false}, []string{"menu=false", "cleanup"}},
+		{"remove menu", contextMenuLabel(), integrationState{true, false}, []string{"menu=false", "cleanup"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("APPDATA", t.TempDir())
@@ -239,7 +239,7 @@ func TestSettingsStateIsNotQueriedDuringRedraw(t *testing.T) {
 	if backend.reads != 1 || len(backend.calls) != 0 {
 		t.Fatal("redrawing settings performed integration work")
 	}
-	for _, name := range []string{"关联常用文件格式", "Windows 右键菜单", "保存设置"} {
+	for _, name := range []string{"关联常用文件格式", contextMenuLabel(), "保存设置"} {
 		rect, ok := tester.Find(name)
 		if !ok || rect.X < 0 || rect.Y < 0 || rect.X+rect.W > 760 || rect.Y+rect.H > 420 {
 			t.Fatalf("settings control %s outside minimum window: %+v", name, rect)

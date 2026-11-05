@@ -23,6 +23,7 @@ func runDesktopTests(m *testing.M) int {
 		return 1
 	}
 	defer os.RemoveAll(root)
+	preferencesDirectory = func() (string, error) { return os.Getenv("XDG_CONFIG_HOME"), nil }
 	// UI actions such as zoom save preferences, even in scrolling tests.
 	for _, name := range []string{"APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR"} {
 		if err := os.Setenv(name, root); err != nil {

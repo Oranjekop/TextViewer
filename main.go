@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/Oranjekop/TextViewer/internal/desktop"
 	"github.com/Oranjekop/TextViewer/internal/fileassoc"
@@ -74,9 +72,7 @@ func main() {
 		app.OpenArguments(os.Args[1:], "")
 	})
 	mygo.App.OnOpenFile(func(path string) {
-		if !strings.HasPrefix(filepath.Base(path), "-") {
-			app.OpenArguments([]string{path}, "")
-		}
+		app.OpenArguments([]string{path}, "")
 	})
 	if err := mygo.App.Run(); err != nil {
 		exitWith(err)

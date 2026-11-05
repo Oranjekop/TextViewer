@@ -10,6 +10,8 @@ import (
 
 func TestOutputSettingsMenusMarkMetadataDirty(t *testing.T) {
 	a := testApp()
+	a.doc.Buffer.SetLineEnding("\r\n")
+	a.doc.Saved = a.doc.CaptureSave()
 	snapshot := a.doc.Buffer.Snapshot()
 	tester := ui.NewTester(a.view, 760, 600)
 	if err := tester.Click("编码"); err != nil {

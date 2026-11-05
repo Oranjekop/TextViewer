@@ -164,7 +164,7 @@ func PerformanceCheck(args []string) error {
 	doc.Buffer.Undo()
 	tester.Frame()
 	start = time.Now()
-	tester.Key(ui.Ctrl, ui.KeyEnd)
+	tester.Key(ui.Cmd, ui.KeyEnd)
 	report.NavigateEndMS = milliseconds(start)
 	warm = time.Now()
 	for tester.FramePending() && time.Since(warm) < 30*time.Second {
@@ -180,7 +180,7 @@ func PerformanceCheck(args []string) error {
 	runtime.ReadMemStats(&after)
 	report.UITypeMS = milliseconds(start)
 	report.UITypeBytes = after.TotalAlloc - baseline.TotalAlloc
-	tester.Key(ui.Ctrl, ui.KeyZ)
+	tester.Key(ui.Cmd, ui.KeyZ)
 	start = time.Now()
 	tester.Scroll(500, 350, 0, -500)
 	report.ScrollMS = milliseconds(start)

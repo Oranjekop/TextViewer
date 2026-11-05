@@ -6,10 +6,13 @@
   },
   "icon": "assets/icon.png",
   "identifier": "local.oranjekop.textviewer",
+  "macos": {
+    "minimumSystemVersion": "12.0"
+  },
   "name": "TextViewer",
   "out": "dist/TextViewer",
   "slug": "textviewer",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "windows": {
     "installerInclude": "shell/installer.nsh"
   }

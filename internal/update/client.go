@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -44,6 +45,7 @@ type Client struct {
 	latestURL  string
 	repository string
 	cacheDir   string
+	platform   string
 }
 
 type Installer struct {
@@ -85,6 +87,7 @@ func NewClient() *Client {
 		},
 		latestURL:  "https://api.github.com/repos/" + releaseinfo.Repository + "/releases/latest",
 		repository: "https://github.com/" + releaseinfo.Repository,
+		platform:   runtime.GOOS,
 	}
 }
 
@@ -154,9 +157,13 @@ func (c *Client) assets(release *Release) (installer, checksums Asset, err error
 	if err != nil || version != release.Version {
 		return installer, checksums, errors.New("inconsistent release version")
 	}
+	installerName := releaseinfo.InstallerNameFor(version, c.platform)
+	if installerName == "" {
+		return installer, checksums, errors.New("updates are unsupported on this platform")
+	}
 	for _, asset := range release.Assets {
 		switch asset.Name {
-		case releaseinfo.InstallerName(version):
+		case installerName:
 			if installer.Name != "" {
 				return installer, checksums, errors.New("duplicate installer asset")
 			}
@@ -218,7 +225,7 @@ func (c *Client) Download(ctx context.Context, release *Release, progress func(d
 	if err = os.MkdirAll(cache, 0700); err != nil {
 		return nil, err
 	}
-	f, err := os.CreateTemp(cache, "TextViewer-Setup-"+release.Version+"-*.exe")
+	f, err := os.CreateTemp(cache, "TextViewer-Setup-"+release.Version+"-*"+filepath.Ext(installer.Name))
 	if err != nil {
 		return nil, err
 	}

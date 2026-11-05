@@ -1276,6 +1276,36 @@ func (msgs Messages) DocumentStats(size string, lines int) string {
 	return Catalog.Format(msgs.locale, "documentStats", map[string]any{"size": size, "lines": lines})
 }
 
+// CharacterCount says "字符数"
+// in the language the app shows.
+func CharacterCount() string { return In(i18n.Locale()).CharacterCount() }
+
+// CharacterCount says "字符数"
+// in the language of msgs.
+func (msgs Messages) CharacterCount() string {
+	return Catalog.Format(msgs.locale, "characterCount", nil)
+}
+
+// CharacterStats says "{count} 字符"
+// in the language the app shows.
+func CharacterStats(count string) string { return In(i18n.Locale()).CharacterStats(count) }
+
+// CharacterStats says "{count} 字符"
+// in the language of msgs.
+func (msgs Messages) CharacterStats(count string) string {
+	return Catalog.Format(msgs.locale, "characterStats", map[string]any{"count": count})
+}
+
+// CharacterCountTip says "按 Unicode 字符统计，包含空格与换行"
+// in the language the app shows.
+func CharacterCountTip() string { return In(i18n.Locale()).CharacterCountTip() }
+
+// CharacterCountTip says "按 Unicode 字符统计，包含空格与换行"
+// in the language of msgs.
+func (msgs Messages) CharacterCountTip() string {
+	return Catalog.Format(msgs.locale, "characterCountTip", nil)
+}
+
 // CursorPosition says "行 {line}，列 {column}"
 // in the language the app shows.
 func CursorPosition(line string, column string) string {
@@ -2348,4 +2378,24 @@ func ComparisonStats(hunks int, added int, deleted int) string {
 // in the language of msgs.
 func (msgs Messages) ComparisonStats(hunks int, added int, deleted int) string {
 	return Catalog.Format(msgs.locale, "comparisonStats", map[string]any{"hunks": hunks, "added": added, "deleted": deleted})
+}
+
+// FinderOpen says "在 TextViewer 中打开"
+// in the language the app shows.
+func FinderOpen() string { return In(i18n.Locale()).FinderOpen() }
+
+// FinderOpen says "在 TextViewer 中打开"
+// in the language of msgs.
+func (msgs Messages) FinderOpen() string {
+	return Catalog.Format(msgs.locale, "finderOpen", nil)
+}
+
+// FinderQuickAction says "Finder 快速操作"
+// in the language the app shows.
+func FinderQuickAction() string { return In(i18n.Locale()).FinderQuickAction() }
+
+// FinderQuickAction says "Finder 快速操作"
+// in the language of msgs.
+func (msgs Messages) FinderQuickAction() string {
+	return Catalog.Format(msgs.locale, "finderQuickAction", nil)
 }

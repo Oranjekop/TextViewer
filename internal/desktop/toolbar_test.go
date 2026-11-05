@@ -1,6 +1,8 @@
 package desktop
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -10,8 +12,38 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 )
 
+func TestToolbarAndStatusFitBothLocales(t *testing.T) {
+	output := os.Getenv("TEXTVIEWER_PREVIEW_DIR")
+	for _, tag := range []string{"zh-Hans", "en"} {
+		t.Setenv("MYGO_LOCALE", tag)
+		for _, width := range []int{760, 900, 960, 1120} {
+			a := testApp()
+			a.doc.Buffer.Set("中文😀\n")
+			tester := ui.NewTester(a.view, width, 600)
+			tester.SetLocale(tag)
+			for _, scale := range []float32{1, 1.5, 2} {
+				tester.SetScale(scale)
+				var previous ui.Rect
+				for _, label := range []string{locales.CharacterStats("4"), locales.CursorPosition("1", "1"), locales.Encoding(), locales.LineEnding()} {
+					rect, ok := tester.Find(label)
+					if !ok || rect.W <= 0 || rect.X < previous.X+previous.W || rect.X+rect.W > float32(width) {
+						t.Fatalf("%s width %d scale %g: status %q clipped/overlapping: %+v after %+v", tag, width, scale, label, rect, previous)
+					}
+					previous = rect
+				}
+			}
+			if output != "" && width == 760 {
+				if err := os.MkdirAll(output, 0755); err != nil {
+					t.Fatal(err)
+				}
+				writeLocalePreview(t, filepath.Clean(output), "toolbar-status-"+tag, tester)
+			}
+		}
+	}
+}
+
 func TestToolbarIconsAreValidSVGs(t *testing.T) {
-	if len(toolbarIcons) != 17 {
+	if len(toolbarIcons) != 18 {
 		t.Fatalf("got %d icons", len(toolbarIcons))
 	}
 	for name, icon := range toolbarIcons {
@@ -34,6 +66,26 @@ func TestToolbarIconsAreValidSVGs(t *testing.T) {
 	}
 }
 
+func TestToolbarComparisonUsesExistingChooser(t *testing.T) {
+	a := testApp()
+	tester := ui.NewTester(a.view, 760, 600)
+	if err := tester.Click(locales.CompareText()); err != nil {
+		t.Fatal(err)
+	}
+	if a.compareDialog {
+		t.Fatal("comparison enabled with only one tab")
+	}
+	first := a.documentTab
+	a.newDocument()
+	second := a.documentTab
+	tester.Frame()
+	if err := tester.Click(locales.CompareText()); err != nil {
+		t.Fatal(err)
+	}
+	if !a.compareDialog || a.compareLeft != second || a.compareRight != first {
+		t.Fatal("toolbar did not open comparison for the two tabs")
+	}
+}
 func TestToolbarUndoRedoTracksDocumentHistory(t *testing.T) {
 	a := testApp()
 	tester := ui.NewTester(a.view, 760, 600)
@@ -115,7 +167,7 @@ func TestToolbarTooltipsAndIconActions(t *testing.T) {
 	tester.Move(r.X+r.W/2, r.Y+r.H/2)
 	tester.Advance(650 * time.Millisecond)
 	tester.Frame()
-	if !tester.HasText("打开 (Ctrl+O)") {
+	if !tester.HasText("打开 (" + shortcutText("Ctrl+O") + ")") {
 		t.Fatal("open icon tooltip absent")
 	}
 	if err := tester.Click("查找"); err != nil {
@@ -152,7 +204,7 @@ func TestToolbarFitsAllLanguageNames(t *testing.T) {
 			tester.Frame()
 			r, ok := tester.Find("代码格式")
 			settings, settingsOK := tester.Find("设置")
-			if !ok || !settingsOK || r.W < 164 || r.X+r.W > settings.X {
+			if !ok || !settingsOK || r.W < 140 || r.X+r.W > settings.X {
 				t.Fatalf("%s %s: format overlaps settings", theme, language.Name)
 			}
 			if !tester.HasText(language.Name) {

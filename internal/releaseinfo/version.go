@@ -62,6 +62,16 @@ func InstallerName(version string) string {
 	return "TextViewer-Setup-" + version + "-windows.exe"
 }
 
+func InstallerNameFor(version, platform string) string {
+	if platform == "darwin" {
+		return "TextViewer-Setup-" + version + "-macos-universal.pkg"
+	}
+	if platform == "windows" {
+		return InstallerName(version)
+	}
+	return ""
+}
+
 func ArchiveName(version, arch string) string {
 	return "TextViewer-" + version + "-windows-" + arch + ".zip"
 }

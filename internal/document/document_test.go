@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -25,6 +26,7 @@ func TestEncodingRoundTrip(t *testing.T) {
 	for _, enc := range []Encoding{UTF8, UTF8BOM, UTF16LE, UTF16BE, GB18030} {
 		t.Run(string(enc), func(t *testing.T) {
 			d := New()
+			d.Buffer.SetLineEnding("\r\n")
 			d.Encoding = enc
 			d.Buffer.Set("中文文本 123\n第二行\n")
 			path := filepath.Join(t.TempDir(), "roundtrip.txt")
@@ -227,8 +229,19 @@ func TestCapturedSaveDoesNotMarkNewEditsSaved(t *testing.T) {
 		t.Fatal("edits newer than the saved snapshot were lost")
 	}
 	got, _ := os.ReadFile(path)
-	if string(got) != "captured\r\n" {
+	if string(got) != "captured"+snapshot.lineEnding {
 		t.Fatalf("saved %q", got)
+	}
+}
+
+func TestNewDocumentUsesPlatformLineEnding(t *testing.T) {
+	want := "\n"
+	if runtime.GOOS == "windows" {
+		want = "\r\n"
+	}
+	doc := New()
+	if doc.Buffer.LineEnding() != want || doc.Dirty() || doc.HasChanges() {
+		t.Fatal("new document has the wrong platform format or is dirty")
 	}
 }
 

@@ -18,8 +18,10 @@ type preferences struct {
 	ContextMenu      *bool  `json:"contextMenu,omitempty"`
 }
 
+var preferencesDirectory = os.UserConfigDir
+
 func preferencesPath() string {
-	dir, err := os.UserConfigDir()
+	dir, err := preferencesDirectory()
 	if err != nil {
 		return ""
 	}

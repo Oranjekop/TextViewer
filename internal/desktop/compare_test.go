@@ -52,7 +52,7 @@ func TestComparisonMenuAndSourcePreservation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	tester.Key(ui.Ctrl, ui.KeyZ)
+	tester.Key(ui.Cmd, ui.KeyZ)
 	tester.Type("do not edit")
 	if err := tester.Click(locales.CloseComparison()); err != nil {
 		t.Fatal(err)
@@ -125,7 +125,7 @@ func TestComparisonEscapeAndInvalidSelection(t *testing.T) {
 	}
 	a.chooseComparison()
 	a.startComparison()
-	tester.Key(ui.Ctrl, ui.KeyW)
+	tester.Key(ui.Cmd, ui.KeyW)
 	if a.comparison != nil || len(a.tabs) != 2 {
 		t.Fatal("Ctrl+W must close comparison, not the source tab")
 	}

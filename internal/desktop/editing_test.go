@@ -195,7 +195,7 @@ func TestEditingMenuSelectionCommentsAndGoTo(t *testing.T) {
 	}
 	chooseEditingItem(t, tester, locales.Undo())
 	chooseEditingItem(t, tester, locales.GoToLine())
-	tester.Key(ui.Ctrl, ui.KeyA)
+	tester.Key(ui.Cmd, ui.KeyA)
 	tester.Type("3")
 	tester.Key(0, ui.KeyEnter)
 	if a.state.CursorPos().Line != 2 {
@@ -321,8 +321,8 @@ func TestEditingMenuDoesNotOverrideFindInputShortcuts(t *testing.T) {
 	if err := tester.Click(locales.QueryLabel()); err != nil {
 		t.Fatal(err)
 	}
-	tester.Key(ui.Ctrl, ui.KeyA)
-	tester.Key(ui.Ctrl, ui.KeyX)
+	tester.Key(ui.Cmd, ui.KeyA)
+	tester.Key(ui.Cmd, ui.KeyX)
 	if a.query != "" || tester.Clipboard() != "query" || a.doc.Buffer.String() != "document" {
 		t.Fatal("editor commands took the find input's shortcut")
 	}

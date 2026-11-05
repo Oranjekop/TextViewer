@@ -62,7 +62,7 @@ func TestMarkdownPreviewToggleKeepsEditsSelectionAndScroll(t *testing.T) {
 	if a.state.ScrollY() < scroll/2 {
 		t.Fatalf("closing the preview reset the editor scroll: %v -> %v", scroll, a.state.ScrollY())
 	}
-	tester.Key(ui.Ctrl|ui.Shift, ui.KeyV)
+	tester.Key(ui.Cmd|ui.Shift, ui.KeyV)
 	if !a.preview.open || a.doc.Buffer.Snapshot() != before || a.state.Selection() != selection {
 		t.Fatal("preview shortcut failed or changed the document")
 	}
@@ -141,7 +141,7 @@ func TestMarkdownPreviewTabsAndLanguageChoicesAreIndependent(t *testing.T) {
 	}
 	a.newDocument()
 	tester.Frame()
-	tester.Key(ui.Ctrl|ui.Shift, ui.KeyV)
+	tester.Key(ui.Cmd|ui.Shift, ui.KeyV)
 	if _, ok := tester.Find(locales.MarkdownPreviewArea()); ok {
 		t.Fatal("preview shortcut opened a pane for a non-Markdown document")
 	}

@@ -152,7 +152,7 @@ func (a *App) stepComparison(delta int) {
 func (a *App) comparisonView(c *ui.Context) {
 	result := a.comparison
 	c.OnShortcut(0, ui.KeyEscape, a.closeComparison)
-	c.OnShortcut(ui.Ctrl, ui.KeyW, a.closeComparison)
+	c.OnShortcut(ui.Cmd, ui.KeyW, a.closeComparison)
 	c.OnShortcut(0, ui.KeyF3, func() { a.stepComparison(1) })
 	c.OnShortcut(ui.Shift, ui.KeyF3, func() { a.stepComparison(-1) })
 	fontSize, _ := strconv.Atoi(a.fontSize)
