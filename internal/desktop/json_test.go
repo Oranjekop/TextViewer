@@ -55,7 +55,11 @@ func TestJSONCommitRejectsCancellationAndStaleSnapshot(t *testing.T) {
 			case "text":
 				a.doc.Buffer.Set(`{"b":2}`)
 			case "line ending":
-				a.doc.Buffer.SetLineEnding("\n")
+				ending := "\n"
+				if a.doc.Buffer.LineEnding() == ending {
+					ending = "\r\n"
+				}
+				a.doc.Buffer.SetLineEnding(ending)
 			}
 			current := a.doc.Buffer.Snapshot()
 			err := applyJSONFormat(ctx, a.doc, before, "replacement")

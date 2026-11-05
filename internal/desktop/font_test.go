@@ -39,6 +39,11 @@ func TestFontChoiceSurvivesRestartAndDocumentChanges(t *testing.T) {
 func TestFontDialogSearchApplyAndCancel(t *testing.T) {
 	t.Setenv("APPDATA", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	families := installedFonts()
+	if len(families) < 2 {
+		t.Fatal("no system font families available")
+	}
+	family := families[1]
 	a := testApp()
 	tester := ui.NewTester(a.view, 760, 600)
 	if err := tester.Click("字体"); err != nil {
@@ -54,15 +59,15 @@ func TestFontDialogSearchApplyAndCancel(t *testing.T) {
 	if err := tester.Click("字体名称"); err != nil {
 		t.Fatal(err)
 	}
-	tester.Type("Consolas")
+	tester.Type(family)
 	tester.Key(0, ui.KeyEnter)
-	if a.fontDraft != "Consolas" {
+	if a.fontDraft != family {
 		t.Fatalf("search did not choose the system font: %q", a.fontDraft)
 	}
 	if err := tester.Click("应用"); err != nil {
 		t.Fatal(err)
 	}
-	if a.fontDialog || a.settings.FontFamily != "Consolas" || loadPreferences().FontFamily != "Consolas" {
+	if a.fontDialog || a.settings.FontFamily != family || loadPreferences().FontFamily != family {
 		t.Fatal("applying font did not persist or dismiss")
 	}
 	if err := tester.Click("字体"); err != nil {
@@ -72,7 +77,7 @@ func TestFontDialogSearchApplyAndCancel(t *testing.T) {
 	if err := tester.Click("取消"); err != nil {
 		t.Fatal(err)
 	}
-	if a.settings.FontFamily != "Consolas" {
+	if a.settings.FontFamily != family {
 		t.Fatal("cancel changed the font")
 	}
 }
