@@ -102,7 +102,7 @@ func (a *App) checkUpdates(manual bool) {
 }
 
 func (a *App) showUpdateIfReady() {
-	if a.closed || a.Win == nil || a.busy != nil || a.confirming || a.settingsDialog || a.fontDialog || !a.updatePending || a.availableUpdate == nil {
+	if a.closed || a.Win == nil || a.busy != nil || a.confirming || a.settingsDialog || a.fontDialog || a.compareDialog || a.comparison != nil || !a.updatePending || a.availableUpdate == nil {
 		return
 	}
 	a.updatePending = false

@@ -99,6 +99,9 @@ func (a *App) editingMenu(m *ui.Menu) {
 	a.commandItem(m, locales.GoToLine(), editor.GoToLine, ui.Ctrl, ui.KeyG)
 	m.Separator()
 	a.jsonFormatMenuItem(m)
+	if m.Item(locales.CompareText()).Disabled(a.busy != nil || a.confirming || len(a.tabs) < 2).Chosen() {
+		a.chooseComparison()
+	}
 }
 
 func (a *App) selectionMenu(m *ui.Menu) {
@@ -180,6 +183,9 @@ func (a *App) transformMenu(m *ui.Menu) {
 	if m.Item(locales.InvertCase()).Disabled(a.busy != nil || !hasSelection).Chosen() {
 		a.transformText(textops.InvertCase)
 	}
+	m.Separator()
+	a.transformItem(m, locales.Base64Encode(), textops.Base64Encode)
+	a.transformItem(m, locales.Base64Decode(), textops.Base64Decode)
 }
 
 func (a *App) transformItem(m *ui.Menu, label string, op textops.Operation) {

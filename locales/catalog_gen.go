@@ -2197,3 +2197,155 @@ func InvertCase() string { return In(i18n.Locale()).InvertCase() }
 func (msgs Messages) InvertCase() string {
 	return Catalog.Format(msgs.locale, "invertCase", nil)
 }
+
+// Base64Encode says "Base64 编码"
+// in the language the app shows.
+func Base64Encode() string { return In(i18n.Locale()).Base64Encode() }
+
+// Base64Encode says "Base64 编码"
+// in the language of msgs.
+func (msgs Messages) Base64Encode() string {
+	return Catalog.Format(msgs.locale, "base64Encode", nil)
+}
+
+// Base64Decode says "Base64 解码"
+// in the language the app shows.
+func Base64Decode() string { return In(i18n.Locale()).Base64Decode() }
+
+// Base64Decode says "Base64 解码"
+// in the language of msgs.
+func (msgs Messages) Base64Decode() string {
+	return Catalog.Format(msgs.locale, "base64Decode", nil)
+}
+
+// Base64TooLarge says "Base64 操作最多支持 32 MiB 所选文本，请缩小选区。"
+// in the language the app shows.
+func Base64TooLarge() string { return In(i18n.Locale()).Base64TooLarge() }
+
+// Base64TooLarge says "Base64 操作最多支持 32 MiB 所选文本，请缩小选区。"
+// in the language of msgs.
+func (msgs Messages) Base64TooLarge() string {
+	return Catalog.Format(msgs.locale, "base64TooLarge", nil)
+}
+
+// InvalidBase64 says "Base64 文本无效，原文未修改。"
+// in the language the app shows.
+func InvalidBase64() string { return In(i18n.Locale()).InvalidBase64() }
+
+// InvalidBase64 says "Base64 文本无效，原文未修改。"
+// in the language of msgs.
+func (msgs Messages) InvalidBase64() string {
+	return Catalog.Format(msgs.locale, "invalidBase64", nil)
+}
+
+// Base64NotText says "解码结果不是 UTF-8 文本，原文未修改。"
+// in the language the app shows.
+func Base64NotText() string { return In(i18n.Locale()).Base64NotText() }
+
+// Base64NotText says "解码结果不是 UTF-8 文本，原文未修改。"
+// in the language of msgs.
+func (msgs Messages) Base64NotText() string {
+	return Catalog.Format(msgs.locale, "base64NotText", nil)
+}
+
+// CompareText says "文本对比…"
+// in the language the app shows.
+func CompareText() string { return In(i18n.Locale()).CompareText() }
+
+// CompareText says "文本对比…"
+// in the language of msgs.
+func (msgs Messages) CompareText() string {
+	return Catalog.Format(msgs.locale, "compareText", nil)
+}
+
+// CompareLeft says "左侧"
+// in the language the app shows.
+func CompareLeft() string { return In(i18n.Locale()).CompareLeft() }
+
+// CompareLeft says "左侧"
+// in the language of msgs.
+func (msgs Messages) CompareLeft() string {
+	return Catalog.Format(msgs.locale, "compareLeft", nil)
+}
+
+// CompareRight says "右侧"
+// in the language the app shows.
+func CompareRight() string { return In(i18n.Locale()).CompareRight() }
+
+// CompareRight says "右侧"
+// in the language of msgs.
+func (msgs Messages) CompareRight() string {
+	return Catalog.Format(msgs.locale, "compareRight", nil)
+}
+
+// StartComparison says "开始对比"
+// in the language the app shows.
+func StartComparison() string { return In(i18n.Locale()).StartComparison() }
+
+// StartComparison says "开始对比"
+// in the language of msgs.
+func (msgs Messages) StartComparison() string {
+	return Catalog.Format(msgs.locale, "startComparison", nil)
+}
+
+// ComparingText says "正在对比文本…"
+// in the language the app shows.
+func ComparingText() string { return In(i18n.Locale()).ComparingText() }
+
+// ComparingText says "正在对比文本…"
+// in the language of msgs.
+func (msgs Messages) ComparingText() string {
+	return Catalog.Format(msgs.locale, "comparingText", nil)
+}
+
+// CompareTooLarge says "每侧文本对比最多支持 8 MiB、50,000 行，原文未修改。"
+// in the language the app shows.
+func CompareTooLarge() string { return In(i18n.Locale()).CompareTooLarge() }
+
+// CompareTooLarge says "每侧文本对比最多支持 8 MiB、50,000 行，原文未修改。"
+// in the language of msgs.
+func (msgs Messages) CompareTooLarge() string {
+	return Catalog.Format(msgs.locale, "compareTooLarge", nil)
+}
+
+// PreviousDifference says "上一处差异"
+// in the language the app shows.
+func PreviousDifference() string { return In(i18n.Locale()).PreviousDifference() }
+
+// PreviousDifference says "上一处差异"
+// in the language of msgs.
+func (msgs Messages) PreviousDifference() string {
+	return Catalog.Format(msgs.locale, "previousDifference", nil)
+}
+
+// NextDifference says "下一处差异"
+// in the language the app shows.
+func NextDifference() string { return In(i18n.Locale()).NextDifference() }
+
+// NextDifference says "下一处差异"
+// in the language of msgs.
+func (msgs Messages) NextDifference() string {
+	return Catalog.Format(msgs.locale, "nextDifference", nil)
+}
+
+// CloseComparison says "关闭对比"
+// in the language the app shows.
+func CloseComparison() string { return In(i18n.Locale()).CloseComparison() }
+
+// CloseComparison says "关闭对比"
+// in the language of msgs.
+func (msgs Messages) CloseComparison() string {
+	return Catalog.Format(msgs.locale, "closeComparison", nil)
+}
+
+// ComparisonStats says "{hunks, number} 处差异  ·  +{added, number} / −{deleted, number}"
+// in the language the app shows.
+func ComparisonStats(hunks int, added int, deleted int) string {
+	return In(i18n.Locale()).ComparisonStats(hunks, added, deleted)
+}
+
+// ComparisonStats says "{hunks, number} 处差异  ·  +{added, number} / −{deleted, number}"
+// in the language of msgs.
+func (msgs Messages) ComparisonStats(hunks int, added int, deleted int) string {
+	return Catalog.Format(msgs.locale, "comparisonStats", map[string]any{"hunks": hunks, "added": added, "deleted": deleted})
+}

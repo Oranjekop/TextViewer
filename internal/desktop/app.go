@@ -36,6 +36,10 @@ type App struct {
 	fontInput          string
 	fontOptions        []string
 	settingsDialog     bool
+	compareDialog      bool
+	compareLeft        *documentTab
+	compareRight       *documentTab
+	comparison         *textComparison
 	settingsDraft      settingsDraft
 	settingsLoading    bool
 	settingsReadFailed bool
@@ -100,6 +104,7 @@ func (a *App) resetEditor() {
 		Label:           locales.EditorArea(),
 		ContextMenu:     a.editMenu,
 		OnInput:         a.documentTab.editorInput,
+		OnDefinition:    a.openEditorURL,
 		Bindings: []editor.Binding{
 			{Mods: ui.Ctrl, Key: ui.KeyF, Command: editor.NoCommand},
 			{Mods: ui.Ctrl, Key: ui.KeyH, Command: editor.NoCommand},
@@ -185,6 +190,10 @@ func (a *App) view(c *ui.Context) {
 	} else if a.settings.Theme == "深色" {
 		c.SetTheme(ui.DarkTheme())
 	}
+	if a.comparison != nil {
+		a.comparisonView(c)
+		return
+	}
 	a.shortcuts(c)
 	t := c.Theme()
 	ui.Column(c).Fill().Background(t.Background).Children(func() {
@@ -233,10 +242,11 @@ func (a *App) view(c *ui.Context) {
 				Disabled(a.busy != nil).Menu(a.lineEndingMenu)
 		})
 	})
-	hadModal := a.fontDialog || a.settingsDialog
+	hadModal := a.fontDialog || a.settingsDialog || a.compareDialog
 	a.fontChooser(c)
 	a.settingsWindow(c)
-	if hadModal && !a.fontDialog && !a.settingsDialog {
+	a.comparisonChooser(c)
+	if hadModal && !a.fontDialog && !a.settingsDialog && !a.compareDialog {
 		a.pendingFocus = true
 		a.showUpdateIfReady()
 	}
@@ -291,7 +301,7 @@ func (a *App) fileMenu(m *ui.Menu) {
 }
 
 func (a *App) shortcuts(c *ui.Context) {
-	if a.fontDialog || a.settingsDialog {
+	if a.fontDialog || a.settingsDialog || a.compareDialog {
 		return
 	}
 	c.OnShortcut(ui.Ctrl, ui.KeyO, a.chooseOpen)

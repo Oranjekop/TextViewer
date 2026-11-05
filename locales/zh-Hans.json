@@ -214,5 +214,20 @@
   "editingText": "正在处理文本…",
   "applyingEdits": "正在应用编辑…",
   "editTextChanged": "文本已改变，请重新执行编辑操作",
-  "invertCase": "反转所选文本大小写"
+  "invertCase": "反转所选文本大小写",
+  "base64Encode": "Base64 编码",
+  "base64Decode": "Base64 解码",
+  "base64TooLarge": "Base64 操作最多支持 32 MiB 所选文本，请缩小选区。",
+  "invalidBase64": "Base64 文本无效，原文未修改。",
+  "base64NotText": "解码结果不是 UTF-8 文本，原文未修改。",
+  "compareText": "文本对比…",
+  "compareLeft": "左侧",
+  "compareRight": "右侧",
+  "startComparison": "开始对比",
+  "comparingText": "正在对比文本…",
+  "compareTooLarge": "每侧文本对比最多支持 8 MiB、50,000 行，原文未修改。",
+  "previousDifference": "上一处差异",
+  "nextDifference": "下一处差异",
+  "closeComparison": "关闭对比",
+  "comparisonStats": "{hunks, number} 处差异  ·  +{added, number} / −{deleted, number}"
 }

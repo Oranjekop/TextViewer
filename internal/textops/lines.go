@@ -35,6 +35,8 @@ const (
 	KebabCase
 	CamelCase
 	PascalCase
+	Base64Encode
+	Base64Decode
 )
 
 type span struct{ start, end int }
@@ -51,7 +53,7 @@ func Prepare(ctx context.Context, snapshot editor.Snapshot, selections []editor.
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	if op > PascalCase {
+	if op > Base64Decode {
 		return Result{}, fmt.Errorf("unknown text operation %d", op)
 	}
 	if tabSize <= 0 {
@@ -96,6 +98,15 @@ func Prepare(ctx context.Context, snapshot editor.Snapshot, selections []editor.
 		}
 	}
 	result := Result{Selections: selected}
+	if op == Base64Encode || op == Base64Decode {
+		total := 0
+		for _, s := range merged {
+			total += s.end - s.start
+			if total > maxBase64Bytes {
+				return Result{}, base64LimitError()
+			}
+		}
+	}
 	for _, s := range merged {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
@@ -149,6 +160,9 @@ func mapOffset(at int, edits []editor.Edit, deltas []int, right bool) int {
 }
 
 func transform(ctx context.Context, text string, op Operation, tabSize int) (string, error) {
+	if op == Base64Encode || op == Base64Decode {
+		return transformBase64(ctx, text, op)
+	}
 	if text == "" {
 		return "", nil
 	}

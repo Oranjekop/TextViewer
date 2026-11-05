@@ -214,5 +214,20 @@
   "editingText": "Editing text…",
   "applyingEdits": "Applying edits…",
   "editTextChanged": "The text changed. Run the editing operation again.",
-  "invertCase": "Invert Selected Text Case"
+  "invertCase": "Invert Selected Text Case",
+  "base64Encode": "Base64 Encode",
+  "base64Decode": "Base64 Decode",
+  "base64TooLarge": "Base64 operations support up to 32 MiB of selected text. Select a smaller range.",
+  "invalidBase64": "Invalid Base64 text. The original text has not been changed.",
+  "base64NotText": "The decoded data is not UTF-8 text. The original text has not been changed.",
+  "compareText": "Compare Text…",
+  "compareLeft": "Left",
+  "compareRight": "Right",
+  "startComparison": "Compare",
+  "comparingText": "Comparing text…",
+  "compareTooLarge": "Each comparison input supports up to 8 MiB and 50,000 lines. The original text has not been changed.",
+  "previousDifference": "Previous Difference",
+  "nextDifference": "Next Difference",
+  "closeComparison": "Close Comparison",
+  "comparisonStats": "{hunks, plural, one {# change} other {# changes}}  ·  +{added, number} / −{deleted, number}"
 }

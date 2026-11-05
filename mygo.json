@@ -9,7 +9,7 @@
   "name": "TextViewer",
   "out": "dist/TextViewer",
   "slug": "textviewer",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "windows": {
     "installerInclude": "shell/installer.nsh"
   }

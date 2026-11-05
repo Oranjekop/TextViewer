@@ -25,6 +25,44 @@ func chooseEditingItem(t *testing.T, tester *ui.Tester, path ...string) {
 	}
 }
 
+func TestBase64MenuScopeUndoAndInvalidInput(t *testing.T) {
+	a := testApp()
+	a.doc.Buffer.Reset("hello 中文")
+	a.doc.Encoding = document.UTF16BE
+	a.doc.Buffer.SetLineEnding("\r\n")
+	tester := ui.NewTester(a.view, 760, 600)
+	a.state.Select(0, 5)
+	chooseEditingItem(t, tester, locales.Transform(), locales.Base64Encode())
+	if a.doc.Buffer.String() != "aGVsbG8= 中文" || a.state.SelectedText() != "aGVsbG8=" {
+		t.Fatal("encode did not use exact selection")
+	}
+	chooseEditingItem(t, tester, locales.Transform(), locales.Base64Decode())
+	if a.doc.Buffer.String() != "hello 中文" || a.state.SelectedText() != "hello" {
+		t.Fatal("decode did not restore selected UTF-8 text")
+	}
+	chooseEditingItem(t, tester, locales.Undo())
+	if a.doc.Buffer.String() != "aGVsbG8= 中文" {
+		t.Fatal("decode was not one undo step")
+	}
+	chooseEditingItem(t, tester, locales.Redo())
+	if a.doc.Buffer.String() != "hello 中文" || a.doc.Encoding != document.UTF16BE || a.doc.Buffer.LineEnding() != "\r\n" {
+		t.Fatal("conversion changed save format")
+	}
+	a.doc.Buffer.Reset("YWJj")
+	a.state.Select(2, 2)
+	chooseEditingItem(t, tester, locales.Transform(), locales.Base64Decode())
+	if a.doc.Buffer.String() != "abc" {
+		t.Fatal("caret-only conversion should process entire document")
+	}
+	a.doc.Buffer.Reset("invalid!")
+	a.state.Select(0, 0)
+	before := a.doc.Buffer.Snapshot()
+	chooseEditingItem(t, tester, locales.Transform(), locales.Base64Decode())
+	if a.doc.Buffer.Snapshot() != before || a.status == nil || a.busy != nil || a.doc.Buffer.CanUndo() {
+		t.Fatal("invalid decode modified source or left a running job")
+	}
+}
+
 func TestEditingMenuClipboardUndoAndFocus(t *testing.T) {
 	a := testApp()
 	a.doc.Buffer.Reset("alpha\nbeta")
