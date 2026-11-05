@@ -16,7 +16,7 @@ if [[ ! -d "$app" ]]; then
   exit 1
 fi
 go run ./cmd/macbundle "$app"
-/usr/bin/lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/TextViewer"
+/usr/bin/lipo "$app/Contents/MacOS/TextViewer" -verify_arch arm64 x86_64
 /usr/bin/plutil -lint "$app/Contents/Info.plist"
 identity="${MACOS_SIGNING_IDENTITY:--}"
 if [[ "$identity" == "-" ]]; then
@@ -36,14 +36,14 @@ mkdir "$staging/payload"
 if ! /usr/libexec/PlistBuddy -c 'Set :0:BundleOverwriteAction upgrade' "$staging/components.plist" 2>/dev/null; then
   /usr/libexec/PlistBuddy -c 'Add :0:BundleOverwriteAction string upgrade' "$staging/components.plist"
 fi
-sign_args=()
+set --
 if [[ -n "${MACOS_INSTALLER_IDENTITY:-}" ]]; then
-  sign_args=(--sign "$MACOS_INSTALLER_IDENTITY" --timestamp)
+  set -- --sign "$MACOS_INSTALLER_IDENTITY" --timestamp
 fi
 # A component package replaces the existing /Applications/TextViewer.app on upgrade.
 /usr/bin/pkgbuild --root "$staging/payload" --component-plist "$staging/components.plist" --install-location /Applications \
   --identifier local.oranjekop.textviewer --version "$version" \
-  "${sign_args[@]}" "$package"
+  "$@" "$package"
 if [[ -n "${MACOS_NOTARY_PROFILE:-}" ]]; then
   /usr/bin/xcrun notarytool submit "$package" --keychain-profile "$MACOS_NOTARY_PROFILE" --wait
   /usr/bin/xcrun stapler staple "$package"
