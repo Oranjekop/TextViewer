@@ -1,5 +1,7 @@
 # TextViewer
 
+[![Listed on Awesome MyGo](https://awesomemygo.dev/badge.svg)](https://awesomemygo.dev/apps/textviewer)
+
 基于 Go / MyGo 的原生文本查看编辑器，面向 Windows 10 / Windows 11，支持 x64 和 ARM64。
 
 ## 功能
@@ -77,4 +79,4 @@ MyGo 会临时生成 `.syso`，同一工作目录内不要并行运行构建、�
 - 文档驻留内存，不是磁盘分页编辑器；多个文件的内存占用累加。后台载入、流式查找和缓冲区复用减少阻塞及全文复制，复杂转换仍需要额外结果空间。
 - Markdown 预览最多显示开头 64 KiB、1,000 行，截断时提示；左侧始终保留完整文本。
 - 文本对比每侧上限 8 MiB、50,000 行；Base64 输入合计上限 32 MiB；JSON 格式化输入上限 128 MiB、预估输出上限 256 MiB。超限或处理失败不修改原文。
-- 编码切换影响下次保存，不重新解读原文件；编辑区统一使用 LF，保存时按选定格式写入。Base64 是编码，不是加密。
+- 编码切换影响下次保存，不重新解读原文件；编辑区统一使用 LF，保存时按选定格式写入。
