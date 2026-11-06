@@ -2,6 +2,8 @@
 
 [![Listed on Awesome MyGo](https://awesomemygo.dev/badge.svg)](https://awesomemygo.dev/apps/textviewer)
 
+![TextViewer 项目封面：文本编辑、代码高亮与 Markdown 预览](docs/images/textviewer-cover.png)
+
 基于 Go / MyGo 的原生文本查看编辑器，支持 Windows 10 / Windows 11 和 macOS。Windows 支持 x64 / ARM64，macOS 使用同时支持 Apple Silicon 与 Intel 的 Universal 安装包。
 
 ## 功能
