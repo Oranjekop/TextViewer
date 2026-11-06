@@ -71,9 +71,7 @@ func main() {
 		}
 		app.OpenArguments(os.Args[1:], "")
 	})
-	mygo.App.OnOpenFile(func(path string) {
-		app.OpenArguments([]string{path}, "")
-	})
+	mygo.App.OnOpenFile(fileOpenHandler(mygo.App.WhenReady, app.OpenArguments))
 	if err := mygo.App.Run(); err != nil {
 		exitWith(err)
 	}
