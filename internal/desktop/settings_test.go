@@ -83,7 +83,7 @@ func TestSettingsUnsavedIntegrationChoiceUsesSystemState(t *testing.T) {
 	}
 }
 
-func TestSettingsSurviveFontWrapAndUpdatePersistence(t *testing.T) {
+func TestSettingsSurviveFontWrapAndManualUpdateCheck(t *testing.T) {
 	t.Setenv("APPDATA", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	enabled := true
@@ -107,8 +107,8 @@ func TestSettingsSurviveFontWrapAndUpdatePersistence(t *testing.T) {
 	a.checkUpdates(true)
 	restarted := New()
 	got := restarted.settings
-	prefs.FontSize, prefs.Wrap, prefs.LastUpdateCheck = 22, true, got.LastUpdateCheck
-	if got.LastUpdateCheck == 0 || !reflect.DeepEqual(got, prefs) {
+	prefs.FontSize, prefs.Wrap = 22, true
+	if !reflect.DeepEqual(got, prefs) {
 		t.Fatalf("an unrelated save replaced existing preferences: %+v", got)
 	}
 	restarted.integration = a.integration

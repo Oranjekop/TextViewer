@@ -179,7 +179,7 @@ func (a *App) Ready() error {
 		a.openFiles(e.Paths)
 	})
 	a.updateTitle()
-	a.scheduleUpdateCheck()
+	a.checkUpdatesOnStartup()
 	return nil
 }
 

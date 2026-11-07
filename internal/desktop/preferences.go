@@ -13,7 +13,6 @@ type preferences struct {
 	Theme            string `json:"theme"`
 	Locale           string `json:"locale,omitempty"`
 	AutoCheckUpdates bool   `json:"autoCheckUpdates"`
-	LastUpdateCheck  int64  `json:"lastUpdateCheck,omitempty"`
 	FileAssociations *bool  `json:"fileAssociations,omitempty"`
 	ContextMenu      *bool  `json:"contextMenu,omitempty"`
 }

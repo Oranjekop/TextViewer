@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -86,27 +87,51 @@ func TestAutoUpdatePreferenceMigratesAndCanBeDisabled(t *testing.T) {
 	}
 }
 
-func TestAutomaticUpdateCheckIsThrottledAndToleratesClockChanges(t *testing.T) {
+func TestStartupUpdateCheckIgnoresLegacyTimestampAndHonorsOptOut(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		enabled bool
-		last    time.Time
-		due     bool
+		calls   int
 	}{
-		{"disabled", false, time.Unix(0, 0), false},
-		{"first launch", true, time.Unix(0, 0), true},
-		{"checked recently", true, time.Now().Add(-time.Hour), false},
-		{"checked yesterday", true, time.Now().Add(-25 * time.Hour), true},
-		{"clock moved backwards", true, time.Now().Add(time.Hour), true},
+		{"enabled", true, 2},
+		{"disabled", false, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a := testApp()
-			a.settings.AutoCheckUpdates, a.settings.LastUpdateCheck = tc.enabled, tc.last.Unix()
-			a.scheduleUpdateCheck()
-			scheduled := a.updateCancel != nil
-			a.stopUpdateCheck()
-			if scheduled != tc.due {
-				t.Fatalf("scheduled %v, want %v", scheduled, tc.due)
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			path := preferencesPath()
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			config := `{"autoCheckUpdates":` + strconv.FormatBool(tc.enabled) +
+				`,"lastUpdateCheck":` + strconv.FormatInt(time.Now().Unix(), 10) + `}`
+			if err := os.WriteFile(path, []byte(config), 0600); err != nil {
+				t.Fatal(err)
+			}
+			release := &update.Release{Version: "0.0.6"}
+			client := &fakeUpdateClient{}
+			client.check = func(context.Context, string) (*update.Release, error) {
+				if client.calls == 1 {
+					return nil, errors.New("offline")
+				}
+				return release, nil
+			}
+			for launch := range 2 {
+				a := testApp()
+				a.settings = loadPreferences()
+				a.version, a.updateClient = "0.0.5", client
+				a.checkUpdatesOnStartup()
+				if a.updateChecking || a.updateMessage != nil {
+					t.Fatal("automatic check left a waiting state or reported a background error")
+				}
+				if tc.enabled && launch == 1 && (!a.updatePending || a.availableUpdate != release) {
+					t.Fatal("relaunch after a failed check did not discover the update")
+				}
+			}
+			if client.calls != tc.calls {
+				t.Fatalf("got %d checks across two launches, want %d", client.calls, tc.calls)
+			}
+			if data, err := os.ReadFile(path); err != nil || string(data) != config {
+				t.Fatalf("startup checks changed the saved settings: %v", err)
 			}
 		})
 	}

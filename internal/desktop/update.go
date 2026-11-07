@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 
 	"github.com/Oranjekop/TextViewer/internal/releaseinfo"
 	"github.com/Oranjekop/TextViewer/internal/update"
@@ -24,27 +23,10 @@ func (a *App) stopUpdateCheck() {
 	}
 }
 
-func (a *App) scheduleUpdateCheck() {
-	elapsed := time.Since(time.Unix(a.settings.LastUpdateCheck, 0))
-	if !a.settings.AutoCheckUpdates || (elapsed >= 0 && elapsed < 24*time.Hour) {
-		return
+func (a *App) checkUpdatesOnStartup() {
+	if a.settings.AutoCheckUpdates {
+		a.checkUpdates(false)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	a.updateCancel = cancel
-	go func() {
-		timer := time.NewTimer(3 * time.Second)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return
-		case <-timer.C:
-			a.Win.Update(func() {
-				if !a.closed && ctx.Err() == nil {
-					a.checkUpdates(false)
-				}
-			})
-		}
-	}()
 }
 
 func (a *App) checkUpdates(manual bool) {
@@ -61,8 +43,6 @@ func (a *App) checkUpdates(manual bool) {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.updateCancel, a.updateChecking = cancel, true
 	a.updateMessage, a.updateFailed = nil, false
-	a.settings.LastUpdateCheck = time.Now().Unix()
-	a.persistPreferences()
 	a.background(func() {
 		release, err := a.updateClient.Check(ctx, a.version)
 		a.updateUI(func() {
