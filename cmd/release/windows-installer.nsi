@@ -46,11 +46,19 @@ Function ${PREFIX}CheckRunning
   InitPluginsDir
   File /oname=$PLUGINSDIR\CheckRunning.ps1 @CHECK@
   System::Call 'kernel32::SetEnvironmentVariableW(w "TEXTVIEWER_INSTALL_DIR", w "$INSTDIR")'
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\CheckRunning.ps1"'
+  ; A 32-bit PowerShell cannot reliably read native editor module paths.
+  StrCpy $2 "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+  IfFileExists "$2" +2
+  StrCpy $2 "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe"
+  nsExec::ExecToStack /TIMEOUT=15000 '"$2" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\CheckRunning.ps1"'
   Pop $0
   Pop $1
-  ${If} $0 != 0
+  ${If} $0 == 2
     MessageBox MB_ICONEXCLAMATION "请先关闭安装目录中的 TextViewer，再重新运行安装或卸载程序。未保存的文本不会被强制关闭。" /SD IDOK
+    SetErrorLevel 2
+    Abort
+  ${ElseIf} $0 != 0
+    MessageBox MB_ICONEXCLAMATION "无法确认 TextViewer 是否已退出。请关闭 TextViewer 后重试。" /SD IDOK
     SetErrorLevel 2
     Abort
   ${EndIf}

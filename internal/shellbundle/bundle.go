@@ -28,30 +28,51 @@ func Read(executable string) (map[string][]byte, error) {
 	defer reader.Close()
 	files := make(map[string][]byte, len(Files))
 	for _, name := range Files {
-		var entry *zip.File
-		for _, candidate := range reader.File {
-			if candidate.Name == name {
-				if entry != nil {
-					return nil, fmt.Errorf("duplicate embedded file %s", name)
-				}
-				entry = candidate
-			}
-		}
-		if entry == nil || entry.UncompressedSize64 == 0 || entry.UncompressedSize64 > 16<<20 {
-			return nil, fmt.Errorf("invalid embedded file %s", name)
-		}
-		stream, err := entry.Open()
+		data, err := readEntry(&reader.Reader, name)
 		if err != nil {
 			return nil, err
-		}
-		data, err := io.ReadAll(io.LimitReader(stream, (16<<20)+1))
-		stream.Close()
-		if err != nil || len(data) > 16<<20 {
-			return nil, fmt.Errorf("read embedded %s: %w", name, err)
 		}
 		files[name] = data
 	}
 	return files, nil
+}
+
+// ReadContextMenuScript lets a status check run without preparing the bundle.
+func ReadContextMenuScript(executable string) ([]byte, error) {
+	reader, err := zip.OpenReader(executable)
+	if err != nil {
+		return nil, locales.WrapError(err, locales.MissingBundle)
+	}
+	defer reader.Close()
+	return readEntry(&reader.Reader, "ContextMenu.ps1")
+}
+
+func readEntry(reader *zip.Reader, name string) ([]byte, error) {
+	var entry *zip.File
+	for _, candidate := range reader.File {
+		if candidate.Name == name {
+			if entry != nil {
+				return nil, fmt.Errorf("duplicate embedded file %s", name)
+			}
+			entry = candidate
+		}
+	}
+	if entry == nil || entry.UncompressedSize64 == 0 || entry.UncompressedSize64 > 16<<20 {
+		return nil, fmt.Errorf("invalid embedded file %s", name)
+	}
+	stream, err := entry.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer stream.Close()
+	data, err := io.ReadAll(io.LimitReader(stream, (16<<20)+1))
+	if err != nil {
+		return nil, fmt.Errorf("read embedded %s: %w", name, err)
+	}
+	if len(data) > 16<<20 {
+		return nil, fmt.Errorf("invalid embedded file %s", name)
+	}
+	return data, nil
 }
 
 // Append runs before Authenticode signing and installer/archive creation.

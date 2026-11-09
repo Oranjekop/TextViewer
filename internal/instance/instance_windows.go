@@ -76,14 +76,9 @@ func Start(open func([]string, string)) (*Lock, bool, error) {
 	digest := sha256.Sum256([]byte(config + "\n" + os.Getenv("XDG_RUNTIME_DIR")))
 	name := "TextViewer." + hex.EncodeToString(digest[:12])
 	mutexName, _ := windows.UTF16PtrFromString(`Local\` + name)
-	mutex, err := windows.CreateMutex(nil, false, mutexName)
-	if err != nil && !errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
-		return nil, false, err
-	}
 	class, _ := windows.UTF16PtrFromString(name)
-	if errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
-		windows.CloseHandle(mutex)
-		forwarded, err := forward(class)
+	mutex, forwarded, err := claimOrForward(mutexName, class)
+	if forwarded || err != nil {
 		return nil, forwarded, err
 	}
 	lock := &Lock{mutex: mutex, class: class}
@@ -118,33 +113,56 @@ func Start(open func([]string, string)) (*Lock, bool, error) {
 	return lock, false, nil
 }
 
-func forward(class *uint16) (bool, error) {
-	directory, _ := os.Getwd()
-	bytes, err := json.Marshal(message{os.Args[1:], directory})
-	if err != nil || len(bytes) > maxMessage {
-		return false, errors.New("activation request is too large")
-	}
+func claimOrForward(mutexName, class *uint16) (windows.Handle, bool, error) {
 	deadline := time.Now().Add(5 * time.Second)
 	for {
+		mutex, err := windows.CreateMutex(nil, false, mutexName)
+		if !errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
+			return mutex, false, err
+		}
+		// Do not keep the mutex alive while the old editor is exiting.
+		windows.CloseHandle(mutex)
 		window, _, _ := findWindow.Call(^uintptr(2), 0, uintptr(unsafe.Pointer(class)), 0)
 		if window != 0 {
-			var pid uint32
-			windowProcess.Call(window, uintptr(unsafe.Pointer(&pid)))
-			allowForeground.Call(uintptr(pid))
-			data := copyData{messageID, uint32(len(bytes)), unsafe.Pointer(&bytes[0])}
-			var accepted uintptr
-			result, _, err := sendMessage.Call(window, wmCopyData, 0, uintptr(unsafe.Pointer(&data)), 0x0002, 5000, uintptr(unsafe.Pointer(&accepted)))
-			runtime.KeepAlive(bytes)
-			if result != 0 && accepted == 1 {
-				return true, nil
+			err := forward(window, deadline)
+			if err == nil {
+				return 0, true, nil
 			}
-			return false, fmt.Errorf("the existing editor did not accept the launch: %v", err)
+			current, _, _ := findWindow.Call(^uintptr(2), 0, uintptr(unsafe.Pointer(class)), 0)
+			if current == window && !errors.Is(err, windows.ERROR_INVALID_WINDOW_HANDLE) {
+				return 0, false, err
+			}
+			// The receiver disappeared between lookup and delivery. Try
+			// ownership again instead of launching without an activation lock.
 		}
-		if time.Now().After(deadline) {
-			return false, errors.New("the existing editor did not create its activation window")
+		if !time.Now().Before(deadline) {
+			return 0, false, errors.New("the existing editor did not create its activation window")
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+}
+
+func forward(window uintptr, deadline time.Time) error {
+	directory, _ := os.Getwd()
+	bytes, err := json.Marshal(message{os.Args[1:], directory})
+	if err != nil || len(bytes) > maxMessage {
+		return errors.New("activation request is too large")
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return errors.New("the existing editor did not accept the launch in time")
+	}
+	var pid uint32
+	windowProcess.Call(window, uintptr(unsafe.Pointer(&pid)))
+	allowForeground.Call(uintptr(pid))
+	data := copyData{messageID, uint32(len(bytes)), unsafe.Pointer(&bytes[0])}
+	var accepted uintptr
+	result, _, err := sendMessage.Call(window, wmCopyData, 0, uintptr(unsafe.Pointer(&data)), 0x0002|0x0020, uintptr(max(1, remaining.Milliseconds())), uintptr(unsafe.Pointer(&accepted)))
+	runtime.KeepAlive(bytes)
+	if result != 0 && accepted == 1 {
+		return nil
+	}
+	return fmt.Errorf("the existing editor did not accept the launch: %w", err)
 }
 
 func (lock *Lock) Close() {

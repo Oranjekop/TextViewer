@@ -1,6 +1,7 @@
 ; Identity registration never changes trust or the system's default editor.
 ; A local development signer is trusted only from the app's confirmation UI.
 !macro customInstall
+  DetailPrint "正在更新文件关联和右键菜单…"
   nsExec::ExecToStack '"$INSTDIR\TextViewer.exe" --configure-windows-integration'
   Pop $0
   Pop $1

@@ -141,12 +141,20 @@ func (a *App) downloadUpdate() {
 
 func (a *App) installUpdate() {
 	a.confirmAllTabs(func() {
-		if err := update.StartInstaller(a.updateInstaller); err != nil {
-			a.updateInstaller = nil
-			a.updateError(locales.InstallerFailed)
-			return
-		}
-		a.Win.Destroy()
+		installer := a.updateInstaller
+		_, id := a.startJob(locales.UpdateReady)
+		a.cancellable = false
+		a.background(func() {
+			err := update.StartInstaller(installer)
+			a.finishJob(id, func() {
+				if err != nil {
+					a.updateInstaller = nil
+					a.updateError(locales.InstallerFailed)
+					return
+				}
+				a.Win.Destroy()
+			})
+		})
 	})
 }
 

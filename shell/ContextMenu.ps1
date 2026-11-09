@@ -370,12 +370,18 @@ if ($Action -eq 'Cleanup') {
         $registered = Get-ItemProperty -LiteralPath $associations
         $protected += @($registered.Directory, $registered.Source)
     }
-    $running = @(Get-CimInstance Win32_Process -Filter "Name = 'TextViewer.exe'")
-    if (@($running | Where-Object { -not $_.ExecutablePath }).Count -gt 0) {
-        throw 'Unable to identify a running TextViewer; old versions were retained.'
+    $runningPaths = @(foreach ($process in @(Get-Process -Name TextViewer -ErrorAction SilentlyContinue)) {
+        try {
+            $path = $process.Path
+            if ($path) { $path }
+            elseif (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
+                throw 'Unable to identify a running TextViewer; old versions were retained.'
+            }
+        } finally { $process.Dispose() }
+    })
+    foreach ($root in @($installRoot, (Join-Path $env:LOCALAPPDATA 'Programs\TextViewer'))) {
+        Remove-TextViewerOldBundles -InstallRoot $root -ProtectedPaths $protected -RunningPaths $runningPaths
     }
-    Remove-TextViewerOldBundles -InstallRoot $installRoot -ProtectedPaths $protected -RunningPaths @($running.ExecutablePath)
-    Remove-TextViewerOldBundles -InstallRoot (Join-Path $env:LOCALAPPDATA 'Programs\TextViewer') -ProtectedPaths $protected -RunningPaths @($running.ExecutablePath)
     exit 0
 }
 $previousPackage = $null

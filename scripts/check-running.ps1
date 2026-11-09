@@ -1,12 +1,22 @@
 $ErrorActionPreference = 'Stop'
 $directory = [IO.Path]::GetFullPath($env:TEXTVIEWER_INSTALL_DIR).TrimEnd('\')
-$deadline = (Get-Date).AddSeconds(8)
+$timer = [Diagnostics.Stopwatch]::StartNew()
 do {
-    $running = @(Get-CimInstance Win32_Process -Filter "Name = 'TextViewer.exe'" | Where-Object {
-        $_.ExecutablePath -and [string]::Equals(
-            [IO.Path]::GetDirectoryName($_.ExecutablePath), $directory, [StringComparison]::OrdinalIgnoreCase)
-    })
-    if ($running.Count -eq 0) { exit 0 }
+    $running = $false
+    foreach ($process in @(Get-Process -Name TextViewer -ErrorAction SilentlyContinue)) {
+        try {
+            $path = $process.Path
+            if (-not $path) {
+                if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) { continue }
+                exit 3 # Cannot safely rule out an editor in the target directory.
+            }
+            if ([string]::Equals([IO.Path]::GetDirectoryName($path), $directory, [StringComparison]::OrdinalIgnoreCase)) {
+                $running = $true
+                break
+            }
+        } finally { $process.Dispose() }
+    }
+    if (-not $running) { exit 0 }
     Start-Sleep -Milliseconds 250
-} while ((Get-Date) -lt $deadline)
+} while ($timer.Elapsed.TotalSeconds -lt 8)
 exit 2

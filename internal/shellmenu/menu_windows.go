@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -44,21 +45,32 @@ func run(action string, extra ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	script := filepath.Join(dir, "ContextMenu.ps1")
+	return runScript(2*time.Minute, filepath.Join(dir, "ContextMenu.ps1"), action, append([]string{"-AppDirectory", dir}, extra...)...)
+}
+
+func runScript(timeout time.Duration, script, action string, extra ...string) (string, error) {
 	powershell := filepath.Join(os.Getenv("SystemRoot"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	args := []string{"-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-Action", action, "-AppDirectory", dir}
+	args := []string{"-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-Action", action}
 	args = append(args, extra...)
 	cmd := exec.CommandContext(ctx, powershell, args...)
 	cmd.Env = powerShellEnvironment()
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+	cmd.WaitDelay = 2 * time.Second
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", locales.WrapError(ctx.Err(), func(detail string) string { return locales.WindowsIntegrationFailed(detail) })
+		}
 		if strings.Contains(string(out), "TEXTVIEWER_CERTIFICATE_TRUST_REQUIRED") {
 			return "", ErrTrustRequired
 		}
-		return "", locales.NewError(func() string { return locales.WindowsIntegrationFailed(strings.TrimSpace(string(out))) })
+		detail := strings.TrimSpace(string(out))
+		if detail == "" {
+			detail = err.Error()
+		}
+		return "", locales.NewError(func() string { return locales.WindowsIntegrationFailed(detail) })
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -102,10 +114,64 @@ func TrustAndInstall() error {
 
 func Install() error   { _, err := run("Install"); return err }
 func Uninstall() error { _, err := run("Remove"); return err }
-func Cleanup() error   { _, err := run("Cleanup"); return err }
+
+var bundleName = regexp.MustCompile(`^app-[a-f0-9]{16}$`)
+
+func Cleanup() error {
+	root, err := integrationRoot()
+	if err != nil {
+		return err
+	}
+	legacy := filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", "TextViewer")
+	for _, dir := range []string{root, legacy} {
+		entries, err := os.ReadDir(dir)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() && bundleName.MatchString(entry.Name()) {
+				_, err := run("Cleanup")
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func Installed() (bool, error) {
-	out, err := run("Status")
-	return strings.Contains(out, "INSTALLED"), err
+	exe, err := os.Executable()
+	if err != nil {
+		return false, err
+	}
+	data, err := shellbundle.ReadContextMenuScript(exe)
+	if err != nil {
+		return false, err
+	}
+	dir, err := os.MkdirTemp("", "textviewer-menu-status-")
+	if err != nil {
+		return false, err
+	}
+	defer os.Remove(dir)
+	script := filepath.Join(dir, "ContextMenu.ps1")
+	defer os.Remove(script)
+	if err := os.WriteFile(script, data, 0600); err != nil {
+		return false, err
+	}
+	out, err := runScript(12*time.Second, script, "Status")
+	if err != nil {
+		return false, err
+	}
+	switch out {
+	case "INSTALLED":
+		return true, nil
+	case "ABSENT":
+		return false, nil
+	default:
+		return false, locales.NewError(func() string { return locales.WindowsIntegrationFailed(out) })
+	}
 }
 
 // PrepareBundle extracts the self-contained executable only when an integration

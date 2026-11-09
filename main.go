@@ -52,7 +52,7 @@ func main() {
 	}
 	mygo.App.SetName("TextViewer")
 	mygo.App.SetVersion(version)
-	app := desktop.New()
+	var app *desktop.App
 	lock, forwarded, err := instance.Start(func(args []string, dir string) {
 		mygo.App.WhenReady(func() { app.OpenArguments(args, dir) })
 	})
@@ -64,6 +64,7 @@ func main() {
 		log.Printf("TextViewer: single instance activation: %v", err)
 	}
 	defer lock.Close()
+	app = desktop.New()
 	mygo.App.WhenReady(func() {
 		if err := app.Ready(); err != nil {
 			exitWith(err)
