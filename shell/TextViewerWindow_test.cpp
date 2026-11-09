@@ -2,6 +2,7 @@
 #define WINVER 0x0A00
 #define _WIN32_WINNT 0x0A00
 #include <windows.h>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -202,9 +203,9 @@ static void verifyBlankStartup(const std::wstring &exe, const std::wstring &desk
     std::cout << "Blank/repeated launch, single-file handoff and 30s lifetime passed.\n" << std::flush;
 }
 
-static void verifyLaunch(const std::wstring &exe, const std::wstring &desktopName,
-                         HDESK desktop, const std::filesystem::path &fixture,
-                         HMODULE resources) {
+static SIZE verifyLaunch(const std::wstring &exe, const std::wstring &desktopName,
+                        HDESK desktop, const std::filesystem::path &fixture,
+                        HMODULE resources, SIZE expectedSize = {}) {
     std::ofstream file(fixture);
     file << "TextViewer native window icon regression\n";
     file.close();
@@ -232,6 +233,14 @@ static void verifyLaunch(const std::wstring &exe, const std::wstring &desktopNam
         if (WaitForSingleObject(child.process.hProcess, 50) != WAIT_TIMEOUT) break;
     }
     require(loaded, "The editor did not open the isolated file");
+    RECT bounds = {};
+    if (expectedSize.cx != 0) {
+        require(GetWindowRect(child.window, &bounds) != FALSE, "Cannot read restored window bounds");
+        // The saved dimensions are in DIPs; converting back to pixels may round.
+        require(std::abs(bounds.right - bounds.left - expectedSize.cx) <= 2 &&
+                std::abs(bounds.bottom - bounds.top - expectedSize.cy) <= 2,
+                "The editor did not restore the previous window size");
+    }
     const UINT dpi = GetDpiForWindow(child.window);
     require(dpi != 0, "Cannot read native window DPI");
     const HICON small = windowIcon(child.window, ICON_SMALL);
@@ -243,6 +252,7 @@ static void verifyLaunch(const std::wstring &exe, const std::wstring &desktopNam
     // Ordinary moves/resizes must not repeatedly decode and allocate icons.
     require(SetWindowPos(child.window, nullptr, 60, 60, 920, 680,
                          SWP_NOACTIVATE | SWP_NOZORDER) != FALSE, "Cannot resize test window");
+    require(GetWindowRect(child.window, &bounds) != FALSE, "Cannot read resized window bounds");
     require(GetDpiForWindow(child.window) == dpi, "Unexpected monitor DPI change");
     require(windowIcon(child.window, ICON_SMALL) == small &&
             windowIcon(child.window, ICON_BIG) == big,
@@ -257,6 +267,7 @@ static void verifyLaunch(const std::wstring &exe, const std::wstring &desktopNam
     require(GetExitCodeProcess(child.process.hProcess, &exitCode) && exitCode == 0,
             "The isolated editor failed");
     child.window = nullptr;
+    return {bounds.right - bounds.left, bounds.bottom - bounds.top};
 }
 
 int wmain(int argc, wchar_t **argv) {
@@ -325,8 +336,9 @@ int wmain(int argc, wchar_t **argv) {
         std::cout << "Native saved languages, one-run override and return to System passed.\n" << std::flush;
         const auto handoff = isolated / L"handoff & \u4e2d\u6587.txt";
         verifyBlankStartup(exe, name, desktop, handoff, isolated);
-        verifyLaunch(exe, name, desktop, isolated / L"sample.txt", resources);
-        verifyLaunch(exe, name, desktop, isolated / L"sample.textviewer-icon-test", resources);
+        const SIZE resized = verifyLaunch(exe, name, desktop, isolated / L"sample.txt", resources);
+        verifyLaunch(exe, name, desktop, isolated / L"sample.textviewer-icon-test", resources, resized);
+        std::cout << "Window size restored after a full restart.\n";
         CloseDesktop(desktop);
         desktop = nullptr;
         // Nonrecursive cleanup preserves any unexpected files.
@@ -335,6 +347,8 @@ int wmain(int argc, wchar_t **argv) {
         DeleteFileW(handoff.c_str());
         DeleteFileW((settings / L"settings.json").c_str());
         DeleteFileW((settings / L"locale").c_str());
+        DeleteFileW((settings / L"window-state.json").c_str());
+        DeleteFileW((settings / L"window-state.json.tmp").c_str());
         RemoveDirectoryW(settings.c_str());
         RemoveDirectoryW(isolated.c_str());
         FreeLibrary(resources);

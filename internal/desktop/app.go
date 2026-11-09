@@ -143,8 +143,9 @@ func (a *App) Ready() error {
 		Title: "TextViewer",
 		Width: 1120, Height: 780,
 		MinWidth: 760, MinHeight: 420,
-		Hidden:  true,
-		Content: ui.View(a.view),
+		StateKey: "main",
+		Hidden:   true,
+		Content:  ui.View(a.view),
 	})
 	if err := configureWindowIcon(a.Win); err != nil {
 		log.Printf("TextViewer: set application window icon: %v", err)
