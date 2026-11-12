@@ -3,6 +3,7 @@ package desktop
 import (
 	"errors"
 	"runtime"
+	"slices"
 
 	"github.com/Oranjekop/TextViewer/internal/fileassoc"
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
@@ -17,6 +18,8 @@ type settingsDraft struct {
 	AutoUpdate bool
 	integrationState
 	initialIntegration integrationState
+	extensions         []string
+	initialExtensions  []string
 }
 
 func (a *App) chooseSettings() {
@@ -26,7 +29,9 @@ func (a *App) chooseSettings() {
 	}
 	a.settingsDraft = settingsDraft{
 		Theme: a.settings.Theme, Locale: a.settings.Locale, AutoUpdate: a.settings.AutoCheckUpdates,
-		integrationState: desiredIntegrations(a.settings, integrationState{}),
+		integrationState:  desiredIntegrations(a.settings, integrationState{}),
+		extensions:        slices.Clone(a.settings.AssociationExtensions),
+		initialExtensions: slices.Clone(a.settings.AssociationExtensions),
 	}
 	a.settingsLoadID++
 	id := a.settingsLoadID
@@ -59,6 +64,10 @@ func (a *App) chooseSettings() {
 }
 
 func (a *App) settingsWindow(c *ui.Context) {
+	if a.associationDialog {
+		a.associationChooser(c)
+		return
+	}
 	wasOpen := a.settingsDialog
 	ui.Modal(c.Key("settings-dialog"), &a.settingsDialog, func() {
 		ui.Text(c, locales.Settings()).FontSize(18).Bold()
@@ -86,6 +95,9 @@ func (a *App) settingsWindow(c *ui.Context) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Checkbox(c, &a.settingsDraft.Associations, locales.FileAssociations()).
 				Grow(1).Disabled(a.settingsLoading || a.settingsReadFailed || a.busy != nil)
+			if runtime.GOOS == "windows" && ui.Button(c, locales.ChooseExtensions()).Disabled(a.settingsLoading || a.settingsReadFailed || a.busy != nil).Clicked() {
+				a.chooseAssociations()
+			}
 			if runtime.GOOS != "darwin" && ui.Button(c, locales.DefaultApps()).Disabled(a.settingsLoading || a.busy != nil || !a.settingsDraft.Associations).Clicked() {
 				if err := fileassoc.OpenDefaults(); err != nil {
 					a.settingsError = err.Error
@@ -164,8 +176,12 @@ func (a *App) saveSettings(trust bool) {
 	}
 	work := func() {
 		var err, cleanupErr error
-		if draft.integrationState != draft.initialIntegration {
-			err = applyIntegrations(a.integration, draft.integrationState, draft.initialIntegration, integrationOptions{trust: trust})
+		selectionChanged := !slices.Equal(draft.extensions, draft.initialExtensions)
+		if draft.integrationState != draft.initialIntegration || draft.Associations && selectionChanged {
+			err = applyIntegrations(a.integration, draft.integrationState, draft.initialIntegration, integrationOptions{
+				trust: trust, selectionChanged: selectionChanged,
+				extensions: draft.extensions, previousExtensions: draft.initialExtensions,
+			})
 			if err == nil {
 				cleanupErr = a.integration.Cleanup()
 			}
@@ -180,10 +196,12 @@ func (a *App) saveSettings(trust bool) {
 				return
 			}
 			a.settingsDraft.initialIntegration = draft.integrationState
+			a.settingsDraft.initialExtensions = slices.Clone(draft.extensions)
 			next := a.settings
 			next.Theme, next.AutoCheckUpdates = draft.Theme, draft.AutoUpdate
 			next.Locale = normalizeLocale(draft.Locale)
 			next.FileAssociations, next.ContextMenu = &draft.Associations, &draft.ContextMenu
+			next.AssociationExtensions = slices.Clone(draft.extensions)
 			if err := savePreferences(next); err != nil {
 				a.settingsError = locales.WrapError(err, locales.SettingsNotSaved).Error
 				return

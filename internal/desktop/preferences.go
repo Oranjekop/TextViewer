@@ -7,14 +7,15 @@ import (
 )
 
 type preferences struct {
-	FontFamily       string `json:"fontFamily,omitempty"`
-	FontSize         int    `json:"fontSize"`
-	Wrap             bool   `json:"wrap"`
-	Theme            string `json:"theme"`
-	Locale           string `json:"locale,omitempty"`
-	AutoCheckUpdates bool   `json:"autoCheckUpdates"`
-	FileAssociations *bool  `json:"fileAssociations,omitempty"`
-	ContextMenu      *bool  `json:"contextMenu,omitempty"`
+	FontFamily            string   `json:"fontFamily,omitempty"`
+	FontSize              int      `json:"fontSize"`
+	Wrap                  bool     `json:"wrap"`
+	Theme                 string   `json:"theme"`
+	Locale                string   `json:"locale,omitempty"`
+	AutoCheckUpdates      bool     `json:"autoCheckUpdates"`
+	FileAssociations      *bool    `json:"fileAssociations,omitempty"`
+	AssociationExtensions []string `json:"associationExtensions,omitempty"`
+	ContextMenu           *bool    `json:"contextMenu,omitempty"`
 }
 
 var preferencesDirectory = os.UserConfigDir

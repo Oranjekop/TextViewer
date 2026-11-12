@@ -784,6 +784,66 @@ func (msgs Messages) FileAssociations() string {
 	return Catalog.Format(msgs.locale, "fileAssociations", nil)
 }
 
+// ChooseExtensions says "选择后缀"
+// in the language the app shows.
+func ChooseExtensions() string { return In(i18n.Locale()).ChooseExtensions() }
+
+// ChooseExtensions says "选择后缀"
+// in the language of msgs.
+func (msgs Messages) ChooseExtensions() string {
+	return Catalog.Format(msgs.locale, "chooseExtensions", nil)
+}
+
+// DefaultExtensions says "恢复默认"
+// in the language the app shows.
+func DefaultExtensions() string { return In(i18n.Locale()).DefaultExtensions() }
+
+// DefaultExtensions says "恢复默认"
+// in the language of msgs.
+func (msgs Messages) DefaultExtensions() string {
+	return Catalog.Format(msgs.locale, "defaultExtensions", nil)
+}
+
+// ExtensionText says "文本"
+// in the language the app shows.
+func ExtensionText() string { return In(i18n.Locale()).ExtensionText() }
+
+// ExtensionText says "文本"
+// in the language of msgs.
+func (msgs Messages) ExtensionText() string {
+	return Catalog.Format(msgs.locale, "extensionText", nil)
+}
+
+// ExtensionCode says "开发语言"
+// in the language the app shows.
+func ExtensionCode() string { return In(i18n.Locale()).ExtensionCode() }
+
+// ExtensionCode says "开发语言"
+// in the language of msgs.
+func (msgs Messages) ExtensionCode() string {
+	return Catalog.Format(msgs.locale, "extensionCode", nil)
+}
+
+// ExtensionData says "数据"
+// in the language the app shows.
+func ExtensionData() string { return In(i18n.Locale()).ExtensionData() }
+
+// ExtensionData says "数据"
+// in the language of msgs.
+func (msgs Messages) ExtensionData() string {
+	return Catalog.Format(msgs.locale, "extensionData", nil)
+}
+
+// ExtensionConfig says "配置"
+// in the language the app shows.
+func ExtensionConfig() string { return In(i18n.Locale()).ExtensionConfig() }
+
+// ExtensionConfig says "配置"
+// in the language of msgs.
+func (msgs Messages) ExtensionConfig() string {
+	return Catalog.Format(msgs.locale, "extensionConfig", nil)
+}
+
 // ContextMenu says "Windows 右键菜单"
 // in the language the app shows.
 func ContextMenu() string { return In(i18n.Locale()).ContextMenu() }

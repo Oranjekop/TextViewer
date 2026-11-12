@@ -217,6 +217,36 @@ func TestUpgradeMovesAllCommandsAndRetiresOnlyOwnedMappings(t *testing.T) {
 	assertString(t, root, registeredPath, "TextViewer", `Software\Custom\Capabilities`)
 }
 
+func TestSelectedDevelopmentAssociationsAndDeselection(t *testing.T) {
+	root, dir := isolatedRegistry(t), applicationFixture(t)
+	if err := register(root, dir, dir, []string{".txt", ".go", ".py", ".js"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, ext := range []string{".txt", ".go", ".py", ".js"} {
+		assertString(t, root, classesPath+filetypes.ProgID(ext)+`\shell\open\command`, "", openCommand(dir))
+	}
+	for _, ext := range []string{".bat", ".cmd", ".ps1", ".sh", ".json"} {
+		assertMissingKey(t, root, classesPath+filetypes.ProgID(ext))
+	}
+	mustWrite(t, root, classesPath+`.py\OpenWithProgids`, map[string]string{"Python.File": ""})
+	mustWrite(t, root, classesPath+`.py`, map[string]string{"": "Python.File"})
+	if err := register(root, dir, dir, []string{".txt"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, ext := range []string{".go", ".py", ".js"} {
+		assertMissingKey(t, root, classesPath+filetypes.ProgID(ext))
+	}
+	assertString(t, root, classesPath+`.py`, "", "Python.File")
+	assertString(t, root, classesPath+`.py\OpenWithProgids`, "Python.File", "")
+	if err := register(root, dir, dir, []string{".bat"}); err == nil {
+		t.Fatal("accepted executable command script")
+	}
+	state, err := readState(root)
+	if err != nil || !reflect.DeepEqual(state.Extensions, []string{".txt"}) {
+		t.Fatalf("invalid selection changed registry inventory: %+v %v", state, err)
+	}
+}
+
 func TestUnregisterPreservesReassignedProgID(t *testing.T) {
 	root, dir := isolatedRegistry(t), applicationFixture(t)
 	if err := register(root, dir, dir); err != nil {

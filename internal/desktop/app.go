@@ -36,6 +36,9 @@ type App struct {
 	fontInput          string
 	fontOptions        []string
 	settingsDialog     bool
+	associationDialog  bool
+	associationDraft   map[string]bool
+	associationScroll  ui.ScrollState
 	compareDialog      bool
 	compareLeft        *documentTab
 	compareRight       *documentTab

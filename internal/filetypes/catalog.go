@@ -47,6 +47,48 @@ func AssociationGroups() []Group {
 	return groups
 }
 
+// AssociationOptions offers documents and development files. The shell/batch
+// script group remains excluded from selectable registrations.
+func AssociationOptions() []Group {
+	var groups []Group
+	for _, group := range Groups() {
+		if group.ID != "script" {
+			groups = append(groups, group)
+		}
+	}
+	return groups
+}
+
+// SelectedAssociationGroups validates and canonicalizes a saved selection.
+// nil means the conservative default used before selections were introduced.
+func SelectedAssociationGroups(extensions []string) ([]Group, error) {
+	if extensions == nil {
+		return AssociationGroups(), nil
+	}
+	selected := make(map[string]bool, len(extensions))
+	for _, extension := range extensions {
+		selected[extension] = true
+	}
+	var groups []Group
+	for _, group := range AssociationOptions() {
+		kept := group.Extensions[:0]
+		for _, extension := range group.Extensions {
+			if selected[extension] {
+				kept = append(kept, extension)
+				delete(selected, extension)
+			}
+		}
+		if len(kept) > 0 {
+			group.Extensions = kept
+			groups = append(groups, group)
+		}
+	}
+	if len(selected) > 0 || len(groups) == 0 {
+		return nil, fmt.Errorf("invalid file association selection")
+	}
+	return groups, nil
+}
+
 var catalog = func() []Group {
 	groups, err := parseCatalog(catalogJSON)
 	if err != nil {

@@ -41,6 +41,25 @@ func TestAssociationsExcludeRunnableAndSourceFiles(t *testing.T) {
 	}
 }
 
+func TestExplicitDevelopmentAssociationSelection(t *testing.T) {
+	groups, err := SelectedAssociationGroups([]string{".go", ".py", ".js", ".txt", ".go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var selected []string
+	for _, group := range groups {
+		selected = append(selected, group.Extensions...)
+	}
+	if !slices.Equal(selected, []string{".txt", ".go", ".py", ".js"}) {
+		t.Fatalf("selection did not canonicalize: %v", selected)
+	}
+	for _, selection := range [][]string{{}, {".bat"}, {".cmd"}, {".ps1"}, {".sh"}, {".exe"}, {".txt", ".unknown"}} {
+		if _, err := SelectedAssociationGroups(selection); err == nil {
+			t.Errorf("accepted %v", selection)
+		}
+	}
+}
+
 func TestCatalogRejectsUnsafeOrDuplicateMappings(t *testing.T) {
 	for _, data := range []string{
 		`[]`,

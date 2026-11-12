@@ -15,7 +15,7 @@ type integrationState struct {
 
 type integrationBackend interface {
 	State() (integrationState, error)
-	Associations(bool) error
+	Associations(bool, []string) error
 	ContextMenu(enabled, trust bool) error
 	Cleanup() error
 }
@@ -31,9 +31,9 @@ func (windowsIntegration) State() (integrationState, error) {
 	return integrationState{associations, menu}, err
 }
 
-func (windowsIntegration) Associations(enabled bool) error {
+func (windowsIntegration) Associations(enabled bool, extensions []string) error {
 	if enabled {
-		return fileassoc.Register()
+		return fileassoc.RegisterSelection(extensions)
 	}
 	return fileassoc.RemoveRegistration()
 }
@@ -51,20 +51,24 @@ func (windowsIntegration) ContextMenu(enabled, trust bool) error {
 func (windowsIntegration) Cleanup() error { return shellmenu.Cleanup() }
 
 type integrationOptions struct {
-	trust          bool
-	refreshEnabled bool
+	trust              bool
+	refreshEnabled     bool
+	selectionChanged   bool
+	extensions         []string
+	previousExtensions []string
 }
 
 func applyIntegrations(backend integrationBackend, desired, current integrationState, options integrationOptions) error {
-	if desired.Associations != current.Associations || options.refreshEnabled && desired.Associations {
-		if err := backend.Associations(desired.Associations); err != nil {
+	associationsChanged := desired.Associations != current.Associations || desired.Associations && (options.refreshEnabled || options.selectionChanged)
+	if associationsChanged {
+		if err := backend.Associations(desired.Associations, options.extensions); err != nil {
 			return locales.WrapError(err, locales.AssociationsFailed)
 		}
 	}
 	if desired.ContextMenu != current.ContextMenu || options.refreshEnabled && desired.ContextMenu {
 		if err := backend.ContextMenu(desired.ContextMenu, options.trust); err != nil {
-			if desired.Associations != current.Associations {
-				if rollback := backend.Associations(current.Associations); rollback != nil {
+			if associationsChanged {
+				if rollback := backend.Associations(current.Associations, options.previousExtensions); rollback != nil {
 					err = errors.Join(err, locales.WrapError(rollback, locales.AssociationsRollbackFailed))
 				}
 			}
@@ -96,7 +100,7 @@ func configureInstalledIntegration(backend integrationBackend, p preferences) er
 		return err
 	}
 	// Refresh enabled entries on upgrade to bind them to the new executable.
-	if err := applyIntegrations(backend, desiredIntegrations(p, current), current, integrationOptions{refreshEnabled: true}); err != nil {
+	if err := applyIntegrations(backend, desiredIntegrations(p, current), current, integrationOptions{refreshEnabled: true, extensions: p.AssociationExtensions, previousExtensions: p.AssociationExtensions}); err != nil {
 		return err
 	}
 	return backend.Cleanup()

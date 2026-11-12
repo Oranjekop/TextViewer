@@ -4,6 +4,7 @@ import (
 	"os/exec"
 
 	"github.com/Oranjekop/TextViewer/internal/macsystem"
+	"github.com/Oranjekop/TextViewer/locales"
 )
 
 func Register() error {
@@ -12,6 +13,13 @@ func Register() error {
 		return err
 	}
 	return m.Associations(true)
+}
+
+func RegisterSelection(extensions []string) error {
+	if extensions != nil {
+		return locales.NewError(locales.AssociationsRequireWindows)
+	}
+	return Register()
 }
 
 func Unregister() error {

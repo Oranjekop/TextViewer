@@ -31,6 +31,13 @@ var (
 )
 
 func Register() error {
+	return RegisterSelection(nil)
+}
+
+func RegisterSelection(extensions []string) error {
+	if _, err := filetypes.SelectedAssociationGroups(extensions); err != nil {
+		return err
+	}
 	dir, err := shellmenu.PrepareBundle()
 	if err != nil {
 		return err
@@ -39,7 +46,7 @@ func Register() error {
 	if err != nil {
 		return err
 	}
-	if err := register(registry.CURRENT_USER, dir, filepath.Dir(exe)); err != nil {
+	if err := register(registry.CURRENT_USER, dir, filepath.Dir(exe), extensions); err != nil {
 		return err
 	}
 	notifyShell()
@@ -131,7 +138,15 @@ func readState(root registry.Key) (registrationState, error) {
 	return state, nil
 }
 
-func register(root registry.Key, dir, source string) error {
+func register(root registry.Key, dir, source string, selection ...[]string) error {
+	var selected []string
+	if len(selection) > 0 {
+		selected = selection[0]
+	}
+	groups, err := filetypes.SelectedAssociationGroups(selected)
+	if err != nil {
+		return err
+	}
 	if !filepath.IsAbs(dir) || !filepath.IsAbs(source) || strings.ContainsAny(dir, "\"\r\n") {
 		return locales.NewError(locales.InvalidProgramPath)
 	}
@@ -149,7 +164,7 @@ func register(root registry.Key, dir, source string) error {
 	command := openCommand(dir)
 	applicationIcon := `"` + exe + `",0`
 	var extensions []string
-	for _, group := range filetypes.AssociationGroups() {
+	for _, group := range groups {
 		for _, ext := range group.Extensions {
 			extensions = append(extensions, ext)
 			progID := filetypes.ProgID(ext)

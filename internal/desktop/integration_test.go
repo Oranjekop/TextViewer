@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
@@ -22,15 +23,17 @@ type fakeIntegration struct {
 	stateError    error
 	menuError     error
 	lastMenuTrust bool
+	extensions    []string
 }
 
 func (f *fakeIntegration) State() (integrationState, error) {
 	f.reads++
 	return f.state, f.stateError
 }
-func (f *fakeIntegration) Associations(enabled bool) error {
+func (f *fakeIntegration) Associations(enabled bool, extensions []string) error {
 	f.calls = append(f.calls, fmt.Sprintf("associations=%t", enabled))
 	f.state.Associations = enabled
+	f.extensions = slices.Clone(extensions)
 	return nil
 }
 func (f *fakeIntegration) ContextMenu(enabled, trust bool) error {
