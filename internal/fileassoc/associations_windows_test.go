@@ -114,7 +114,7 @@ func TestRegistrationAndRemovalPreserveDefaultsAndOtherHandlers(t *testing.T) {
 	}
 	checkPreserved()
 	assertString(t, root, registeredPath, "TextViewer", capabilitiesPath)
-	for _, group := range filetypes.Groups() {
+	for _, group := range filetypes.AssociationGroups() {
 		path := filepath.Join(dir, group.IconName())
 		want, _ := icons.ReadFile("icons/" + group.IconName())
 		got, err := os.ReadFile(path)
@@ -138,8 +138,10 @@ func TestRegistrationAndRemovalPreserveDefaultsAndOtherHandlers(t *testing.T) {
 			}
 		}
 	}
-	// Script associations must use the same quoted editor command as documents.
-	document := `C:\中文 folder\-sample & document.ps1`
+	for _, ext := range []string{".bat", ".cmd", ".ps1", ".sh", ".py", ".js", ".go"} {
+		assertMissingKey(t, root, classesPath+filetypes.ProgID(ext))
+	}
+	document := `C:\中文 folder\-sample & document.txt`
 	args, err := windows.DecomposeCommandLine(strings.ReplaceAll(openCommand(dir), "%1", document))
 	if err != nil || !reflect.DeepEqual(args, []string{filepath.Join(dir, "TextViewer.exe"), "--", document}) {
 		t.Fatalf("unsafe or ambiguous open command: %q %v", args, err)
@@ -166,22 +168,40 @@ func TestUpgradeMovesAllCommandsAndRetiresOnlyOwnedMappings(t *testing.T) {
 	if err := register(root, oldDir, oldDir); err != nil {
 		t.Fatal(err)
 	}
-	retired := ".retired"
-	mustWrite(t, root, classesPath+filetypes.ProgID(retired), map[string]string{ownerValue: oldDir})
-	mustWrite(t, root, classesPath+retired+`\OpenWithProgids`, map[string]string{filetypes.ProgID(retired): "", "Other.Editor": ""})
+	retired := []string{".bat", ".cmd", ".ps1", ".sh", ".py", ".js", ".go", ".retired"}
+	for _, ext := range retired {
+		mustWrite(t, root, classesPath+filetypes.ProgID(ext), map[string]string{ownerValue: oldDir})
+		mustWrite(t, root, classesPath+ext+`\OpenWithProgids`, map[string]string{filetypes.ProgID(ext): "", "Other.Editor": ""})
+		mustWrite(t, root, capabilitiesPath+`\FileAssociations`, map[string]string{ext: filetypes.ProgID(ext)})
+		mustWrite(t, root, classesPath+ext, map[string]string{"": "Native.Handler"})
+	}
 	state, _ := readState(root)
 	key, _ := registry.OpenKey(root, statePath, registry.SET_VALUE)
-	if err := key.SetStringsValue("Extensions", append(state.Extensions, retired)); err != nil {
+	if err := key.SetStringsValue("Extensions", append(state.Extensions, retired...)); err != nil {
 		t.Fatal(err)
 	}
 	key.Close()
 	if err := register(root, newDir, newDir); err != nil {
 		t.Fatal(err)
 	}
-	assertMissingKey(t, root, classesPath+filetypes.ProgID(retired))
-	assertString(t, root, classesPath+retired+`\OpenWithProgids`, "Other.Editor", "")
-	for _, ext := range filetypes.Extensions() {
-		assertString(t, root, classesPath+filetypes.ProgID("."+ext)+`\shell\open\command`, "", openCommand(newDir))
+	for _, ext := range retired {
+		assertMissingKey(t, root, classesPath+filetypes.ProgID(ext))
+		assertString(t, root, classesPath+ext+`\OpenWithProgids`, "Other.Editor", "")
+		assertString(t, root, classesPath+ext, "", "Native.Handler")
+		key, err := registry.OpenKey(root, capabilitiesPath+`\FileAssociations`, registry.QUERY_VALUE)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _, err = key.GetStringValue(ext)
+		key.Close()
+		if err != registry.ErrNotExist {
+			t.Fatalf("retired capability %s retained: %v", ext, err)
+		}
+	}
+	for _, group := range filetypes.AssociationGroups() {
+		for _, ext := range group.Extensions {
+			assertString(t, root, classesPath+filetypes.ProgID(ext)+`\shell\open\command`, "", openCommand(newDir))
+		}
 	}
 	if err := unregister(root, oldDir); err != nil {
 		t.Fatal(err)

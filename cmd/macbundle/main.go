@@ -55,7 +55,7 @@ func prepare(bundle string) error {
 	resources := filepath.Join(bundle, "Contents", "Resources")
 	var docs strings.Builder
 	docs.WriteString("<key>CFBundleDocumentTypes</key><array>")
-	for _, group := range filetypes.Groups() {
+	for _, group := range filetypes.AssociationGroups() {
 		file, err := os.Open(filepath.Join("assets", "file-icons", group.ID+"-master.png"))
 		if err != nil {
 			return err

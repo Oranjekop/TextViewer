@@ -14,7 +14,7 @@
 - 代码语法高亮、JSON 格式化、可开关的 Markdown 预览及双向滚动同步；Ctrl+点击 URL 在浏览器中打开。
 - 两个已打开标签的只读文本对比、差异跳转；Base64 编码与解码支持选区、全文及一次撤销。
 - UTF-8、UTF-8 BOM、UTF-16 LE/BE BOM、GB18030 编码，以及 CRLF / LF 保存格式切换。
-- 常用文件格式关联、分类文件图标、Windows 11 新版右键菜单 / Finder 快速操作，以及带 SHA-256 校验的在线更新。
+- TXT、LOG、JSON、YAML 等常用文本关联及分类图标，Windows 11 新版右键菜单 / Finder 快速操作，以及带 SHA-256 校验的在线更新。
 
 ## 下载
 

@@ -1,0 +1,6 @@
+[
+  ".txt", ".text", ".log",
+  ".md", ".markdown",
+  ".json", ".jsonc", ".json5", ".jsonl", ".csv", ".tsv", ".xml",
+  ".ini", ".cfg", ".conf", ".config", ".properties", ".yaml", ".yml", ".toml"
+]

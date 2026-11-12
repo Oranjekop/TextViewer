@@ -17,6 +17,36 @@ type Group struct {
 //go:embed catalog.json
 var catalogJSON []byte
 
+//go:embed associations.json
+var associationsJSON []byte
+
+// AssociationGroups is deliberately narrower than the editor's file filters.
+// Source code and runnable scripts can be opened without registering handlers.
+func AssociationGroups() []Group {
+	var extensions []string
+	if err := json.Unmarshal(associationsJSON, &extensions); err != nil {
+		panic(err)
+	}
+	allowed := make(map[string]bool, len(extensions))
+	for _, extension := range extensions {
+		allowed[extension] = true
+	}
+	var groups []Group
+	for _, group := range Groups() {
+		kept := group.Extensions[:0]
+		for _, extension := range group.Extensions {
+			if allowed[extension] {
+				kept = append(kept, extension)
+			}
+		}
+		if len(kept) != 0 {
+			group.Extensions = kept
+			groups = append(groups, group)
+		}
+	}
+	return groups
+}
+
 var catalog = func() []Group {
 	groups, err := parseCatalog(catalogJSON)
 	if err != nil {

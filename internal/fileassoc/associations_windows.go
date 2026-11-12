@@ -149,7 +149,7 @@ func register(root registry.Key, dir, source string) error {
 	command := openCommand(dir)
 	applicationIcon := `"` + exe + `",0`
 	var extensions []string
-	for _, group := range filetypes.Groups() {
+	for _, group := range filetypes.AssociationGroups() {
 		for _, ext := range group.Extensions {
 			extensions = append(extensions, ext)
 			progID := filetypes.ProgID(ext)
@@ -197,18 +197,6 @@ func register(root registry.Key, dir, source string) error {
 	if err := writeStrings(root, registeredPath, map[string]string{"TextViewer": capabilitiesPath}); err != nil {
 		return err
 	}
-	if err := writeStrings(root, statePath, map[string]string{"Directory": dir, "Source": source}); err != nil {
-		return err
-	}
-	key, err := registry.OpenKey(root, statePath, registry.SET_VALUE)
-	if err != nil {
-		return err
-	}
-	err = key.SetStringsValue("Extensions", extensions)
-	key.Close()
-	if err != nil {
-		return err
-	}
 	// An upgraded catalog can retire a format without retaining stale handlers.
 	for _, ext := range old.Extensions {
 		if !slices.Contains(extensions, ext) {
@@ -220,7 +208,16 @@ func register(root registry.Key, dir, source string) error {
 			}
 		}
 	}
-	return nil
+	// Preserve the old inventory until retirement succeeds so it can be retried.
+	if err := writeStrings(root, statePath, map[string]string{"Directory": dir, "Source": source}); err != nil {
+		return err
+	}
+	key, err := registry.OpenKey(root, statePath, registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer key.Close()
+	return key.SetStringsValue("Extensions", extensions)
 }
 
 func unregister(root registry.Key, expectedDir string) error {
