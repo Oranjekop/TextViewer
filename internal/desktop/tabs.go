@@ -292,6 +292,7 @@ func (a *App) openNextFile() {
 		}
 		if tab := findOpenTab(a.tabs, path); tab != nil {
 			a.activateTab(tab)
+			a.rememberRecentFile(tab.doc.Path)
 			continue
 		}
 		tabs := slices.Clone(a.tabs)
@@ -323,6 +324,7 @@ func (a *App) openNextFile() {
 				}
 				if existing != nil {
 					a.activateTab(existing)
+					a.rememberRecentFile(existing.doc.Path)
 					return
 				}
 				if len(a.tabs) == 1 && a.doc.Path == "" && a.doc.Buffer.Len() == 0 && !a.doc.Dirty() {
@@ -332,6 +334,7 @@ func (a *App) openNextFile() {
 				} else {
 					a.addDocument(doc)
 				}
+				a.rememberRecentFile(doc.Path)
 			})
 		})
 		return

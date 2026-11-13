@@ -309,6 +309,7 @@ func (a *App) fileMenu(m *ui.Menu) {
 	if m.Item(locales.OpenMenu()).Shortcut(ui.Cmd, ui.KeyO).Disabled(a.busy != nil).Chosen() {
 		a.chooseOpen()
 	}
+	m.Submenu(locales.RecentFiles(), a.recentFilesMenu)
 	if m.Item(locales.Save()).Shortcut(ui.Cmd, ui.KeyS).Disabled(a.busy != nil).Chosen() {
 		a.save(false, nil)
 	}
@@ -459,6 +460,7 @@ func (a *App) save(saveAs bool, then func()) {
 		return
 	}
 	snapshot := a.doc.CaptureSave()
+	rememberPath := saveAs || a.doc.Path == ""
 	ctx, id := a.startJob(locales.Saving)
 	doc := a.doc
 	a.background(func() {
@@ -471,6 +473,9 @@ func (a *App) save(saveAs bool, then func()) {
 			doc.AcceptSave(path, snapshot, stamp)
 			a.applyLanguage()
 			a.status = nil
+			if rememberPath {
+				a.rememberRecentFile(resolved)
+			}
 			if then != nil {
 				then()
 			}

@@ -84,6 +84,36 @@ func (msgs Messages) OpenMenu() string {
 	return Catalog.Format(msgs.locale, "openMenu", nil)
 }
 
+// RecentFiles says "最近打开"
+// in the language the app shows.
+func RecentFiles() string { return In(i18n.Locale()).RecentFiles() }
+
+// RecentFiles says "最近打开"
+// in the language of msgs.
+func (msgs Messages) RecentFiles() string {
+	return Catalog.Format(msgs.locale, "recentFiles", nil)
+}
+
+// NoRecentFiles says "暂无记录"
+// in the language the app shows.
+func NoRecentFiles() string { return In(i18n.Locale()).NoRecentFiles() }
+
+// NoRecentFiles says "暂无记录"
+// in the language of msgs.
+func (msgs Messages) NoRecentFiles() string {
+	return Catalog.Format(msgs.locale, "noRecentFiles", nil)
+}
+
+// ClearRecentFiles says "清除记录"
+// in the language the app shows.
+func ClearRecentFiles() string { return In(i18n.Locale()).ClearRecentFiles() }
+
+// ClearRecentFiles says "清除记录"
+// in the language of msgs.
+func (msgs Messages) ClearRecentFiles() string {
+	return Catalog.Format(msgs.locale, "clearRecentFiles", nil)
+}
+
 // Save says "保存"
 // in the language the app shows.
 func Save() string { return In(i18n.Locale()).Save() }

@@ -16,6 +16,7 @@ type preferences struct {
 	FileAssociations      *bool    `json:"fileAssociations,omitempty"`
 	AssociationExtensions []string `json:"associationExtensions,omitempty"`
 	ContextMenu           *bool    `json:"contextMenu,omitempty"`
+	RecentFiles           []string `json:"recentFiles,omitempty"`
 }
 
 var preferencesDirectory = os.UserConfigDir
@@ -40,6 +41,7 @@ func loadPreferences() preferences {
 		p.Theme = "跟随系统"
 	}
 	p.Locale = normalizeLocale(p.Locale)
+	p.RecentFiles = normalizeRecentFiles(p.RecentFiles)
 	return p
 }
 
