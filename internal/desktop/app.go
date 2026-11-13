@@ -13,6 +13,7 @@ import (
 
 	"github.com/Oranjekop/TextViewer/internal/document"
 	"github.com/Oranjekop/TextViewer/internal/filetypes"
+	"github.com/Oranjekop/TextViewer/internal/startuptrace"
 	"github.com/Oranjekop/TextViewer/internal/update"
 	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo"
@@ -22,6 +23,7 @@ import (
 
 type App struct {
 	*documentTab
+	StartupTrace       *startuptrace.Recorder
 	Win                *mygo.Window
 	tabs               []*documentTab
 	tabIndex           int
@@ -136,6 +138,7 @@ func (a *App) Ready() error {
 	a.setLocale = mygo.App.SetLocale
 	a.applyStartupLocale()
 	a.refreshLocale()
+	a.StartupTrace.Mark("locale-ready")
 	offLocale := mygo.App.OnLocaleChanged(func(string) { a.refreshLocale() })
 	if runtime.GOOS == "darwin" {
 		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{{Role: mygo.RoleAppMenu}, {Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu}}))
@@ -150,9 +153,12 @@ func (a *App) Ready() error {
 		Hidden:   true,
 		Content:  ui.View(a.view),
 	})
+	a.StartupTrace.Mark("window-created")
 	if err := configureWindowIcon(a.Win); err != nil {
 		log.Printf("TextViewer: set application window icon: %v", err)
 	}
+	a.StartupTrace.Mark("window-icon-ready")
+	a.Win.OnReadyToShow(func() { a.StartupTrace.CompleteAsync("first-frame") })
 	a.Win.OnClose(func(e *mygo.CloseEvent) {
 		if a.confirming {
 			e.PreventDefault()
@@ -192,6 +198,7 @@ func (a *App) OpenArguments(args []string, dir string) {
 		return
 	}
 	a.Win.Show()
+	a.StartupTrace.Mark("show-returned")
 	a.Win.Focus()
 	var paths []string
 	for _, arg := range args {

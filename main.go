@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/Oranjekop/TextViewer/internal/desktop"
 	"github.com/Oranjekop/TextViewer/internal/fileassoc"
 	"github.com/Oranjekop/TextViewer/internal/instance"
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
+	"github.com/Oranjekop/TextViewer/internal/startuptrace"
 	_ "github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo"
 )
 
 func main() {
+	entered := time.Now()
 	version := applicationVersion()
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
@@ -52,11 +55,15 @@ func main() {
 	}
 	mygo.App.SetName("TextViewer")
 	mygo.App.SetVersion(version)
+	trace := startuptrace.New(version, entered)
+	defer trace.Complete("exit")
 	var app *desktop.App
 	lock, forwarded, err := instance.Start(func(args []string, dir string) {
 		mygo.App.WhenReady(func() { app.OpenArguments(args, dir) })
 	})
+	trace.Mark("instance-ready")
 	if forwarded {
+		trace.Complete("forwarded")
 		return
 	}
 	if err != nil {
@@ -65,7 +72,10 @@ func main() {
 	}
 	defer lock.Close()
 	app = desktop.New()
+	app.StartupTrace = trace
+	trace.Mark("preferences-ready")
 	mygo.App.WhenReady(func() {
+		trace.Mark("backend-ready")
 		if err := app.Ready(); err != nil {
 			exitWith(err)
 			return
