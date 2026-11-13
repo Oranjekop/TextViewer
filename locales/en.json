@@ -64,7 +64,6 @@
   "codeFormat": "Syntax",
   "markdownPreview": "Markdown preview",
   "markdownPreviewArea": "Markdown preview pane",
-  "markdownPreviewTruncated": "Preview truncated. The full document remains editable on the left.",
   "autoDetect": "Auto Detect",
   "plainText": "Plain Text",
   "otherLanguages": "Other Languages",

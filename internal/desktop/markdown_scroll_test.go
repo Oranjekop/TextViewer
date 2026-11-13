@@ -172,29 +172,29 @@ func TestMarkdownScrollMouseWheelCanChangeSides(t *testing.T) {
 	}
 }
 
-func TestMarkdownScrollDoesNotPullEditorBackFromTruncatedContent(t *testing.T) {
+func TestMarkdownScrollFollowsBeyondFormerPreviewLimit(t *testing.T) {
 	a := markdownApp(strings.Repeat("# Heading\n\nParagraph.\n\n", 2000))
 	tester := ui.NewTester(a.view, 900, 600)
-	if !a.preview.truncated {
-		t.Fatal("fixture should exceed the preview limit")
+	if len(a.preview.source) != a.doc.Buffer.Len() {
+		t.Fatal("preview did not include the full source")
 	}
 	a.state.ScrollTo(4000)
 	tester.Frame()
 	left := a.state.ScrollY()
-	if a.preview.scroll.Y != a.preview.scroll.MaxY {
-		t.Fatal("scrolling past the preview prefix did not stop at the preview's end")
+	if a.preview.scroll.Y <= 0 || a.preview.scroll.Y >= a.preview.scroll.MaxY {
+		t.Fatal("scrolling beyond the former limit did not reach the matching middle of the preview")
 	}
 	for range 3 {
 		tester.Frame()
 		if math.Abs(a.state.ScrollY()-left) > 0.25 {
-			t.Fatal("truncated preview pulled the editor back into its prefix")
+			t.Fatal("preview pulled the editor back from its source position")
 		}
 	}
 	pane, _ := tester.Find(locales.MarkdownPreviewArea())
 	tester.Scroll(pane.X+50, pane.Y+50, 0, -200)
 	first, _ := a.state.VisibleLines()
-	if first >= markdownPreviewLines {
-		t.Fatalf("scrolling the preview did not return to its source prefix: line %d", first)
+	if first >= 4000 || first <= 1000 {
+		t.Fatalf("scrolling the complete preview lost its source position: line %d", first)
 	}
 }
 

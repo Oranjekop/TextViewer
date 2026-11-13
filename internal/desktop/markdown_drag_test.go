@@ -124,9 +124,6 @@ func TestMarkdownScrollbarsReachBothEnds(t *testing.T) {
 				a.wrap = example.wrap
 				tester := ui.NewTester(a.view, 760, 600)
 				tester.SetScale(1.5)
-				if a.preview.truncated {
-					t.Fatal("fixture should show its entire Markdown source")
-				}
 				before, selections := a.doc.Buffer.Snapshot(), a.state.Selections()
 				var pane ui.Rect
 				var start, length float32
@@ -204,7 +201,7 @@ func TestMarkdownPreviewDragSurvivesRelayout(t *testing.T) {
 	}
 }
 
-func TestMarkdownPreviewTruncatedDragKeepsItsSourceBoundary(t *testing.T) {
+func TestMarkdownPreviewFullDocumentDragReachesEditorEnd(t *testing.T) {
 	a := markdownApp(strings.Repeat("# Heading\n\nParagraph.\n\n", 2000))
 	a.wrap = false
 	tester := ui.NewTester(a.view, 900, 600)
@@ -215,16 +212,15 @@ func TestMarkdownPreviewTruncatedDragKeepsItsSourceBoundary(t *testing.T) {
 	tester.Move(x, pane.Y+pane.H-2)
 	tester.Release(x, pane.Y+pane.H-2)
 	tester.Advance(time.Second)
-	first, _ := a.state.VisibleLines()
-	if !a.preview.truncated || first < markdownPreviewLines-3 || first > markdownPreviewLines+1 {
-		t.Fatalf("truncated preview did not follow its own source boundary: line %d", first)
+	if len(a.preview.source) != a.doc.Buffer.Len() || math.Abs(a.state.ScrollY()-markdownEditorLimit(a)) > 0.5 {
+		t.Fatal("dragging the complete preview did not reach the full document's end")
 	}
 	a.state.SetScrollY(math.MaxFloat64)
 	tester.Frame()
 	left := a.state.ScrollY()
 	tester.Advance(time.Second)
 	if math.Abs(a.state.ScrollY()-left) > 0.25 || a.preview.scroll.Y != a.preview.scroll.MaxY {
-		t.Fatal("truncated preview pulled the editor back from the full document's end")
+		t.Fatal("complete preview pulled the editor back from the full document's end")
 	}
 }
 

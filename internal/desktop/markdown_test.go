@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/Oranjekop/TextViewer/internal/document"
 	"github.com/Oranjekop/TextViewer/locales"
@@ -147,33 +149,38 @@ func TestMarkdownPreviewTabsAndLanguageChoicesAreIndependent(t *testing.T) {
 	}
 }
 
-func TestMarkdownPreviewBoundsKeepUnicodeAndReportTruncation(t *testing.T) {
-	for _, text := range []string{
-		"# Small\n\nA **complete** document.\n",
-		"# Heading\n\n" + strings.Repeat("中文😀", markdownPreviewBytes),
-		strings.Repeat("line\n", markdownPreviewLines+100),
-		"|a|b|\n|-|-|\n" + strings.Repeat("|x|y|\n", 800),
-		"# Heading\n\n" + strings.Repeat("*em* ", 3000),
+func TestMarkdownPreviewShowsCompleteSource(t *testing.T) {
+	for name, text := range map[string]string{
+		"bytes-and-unicode": "# Heading\n\n" + strings.Repeat("中文😀 ", 12000),
+		"lines":             strings.Repeat("line\n", 1500),
+		"table":             "|a|b|\n|-|-|\n" + strings.Repeat("|x|y|\n", 800),
+		"inlines":           "# Heading\n\n" + strings.Repeat("*em* ", 3000),
 	} {
-		snapshot := editor.NewBuffer(text).Snapshot()
-		shown, truncated := markdownPreviewText(snapshot)
-		if len(shown) > markdownPreviewBytes || !utf8.ValidString(shown) || !strings.HasPrefix(text, shown) {
-			t.Fatal("preview bounds broke its prefix or Unicode")
-		}
-		if shown == "" {
-			t.Fatal("preview limits hid the entire document")
-		}
-		if truncated != (shown != text) {
-			t.Fatal("truncated content was not reported")
-		}
-		if strings.HasPrefix(text, "# Small") && (truncated || shown != text) {
-			t.Fatal("ordinary Markdown was truncated")
-		}
+		t.Run(name, func(t *testing.T) {
+			text += "\n\n# Complete document end\n"
+			a := markdownApp(text)
+			tester := ui.NewTester(a.view, 900, 600)
+			if a.preview.source != text || !utf8.ValidString(a.preview.source) || !tester.HasText("Complete document end") {
+				t.Fatal("preview omitted content beyond the old byte, line or node limits")
+			}
+			if tester.HasText("预览已截断，完整内容仍可在左侧编辑。") || tester.HasText("Preview truncated. The full document remains editable on the left.") {
+				t.Fatal("complete preview still displayed a truncation notice")
+			}
+			source := a.preview.source
+			tester.Frame()
+			if unsafe.StringData(source) != unsafe.StringData(a.preview.source) {
+				t.Fatal("unchanged frame copied the document again")
+			}
+		})
 	}
-	a := markdownApp(strings.Repeat("line\n", markdownPreviewLines+100))
-	tester := ui.NewTester(a.view, 760, 600)
-	if !a.preview.truncated || !tester.HasText(locales.MarkdownPreviewTruncated()) {
-		t.Fatal("bounded preview omitted its truncation notice")
+}
+
+func TestMarkdownPreviewResolvesReferencesBeyondFormerLimit(t *testing.T) {
+	text := "[A full-document link][tail]\n\n" + strings.Repeat("Paragraph.\n\n", 1100) + "[tail]: https://example.com/full-document\n"
+	a := markdownApp(text)
+	tester := ui.NewTester(a.view, 900, 600)
+	if a.preview.source != text || !tester.HasText("A full-document link") || tester.HasText("[tail]") {
+		t.Fatal("reference definition near the end was lost")
 	}
 }
 
@@ -296,16 +303,6 @@ func TestMarkdownPreviewImagesUseNewSaveDirectory(t *testing.T) {
 	}
 }
 
-func BenchmarkMarkdownPreviewBoundedCopy(b *testing.B) {
-	text := strings.Repeat("A large Markdown document.\n", 4<<20)
-	snapshot := editor.NewBuffer(text).Snapshot()
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		_, _ = markdownPreviewText(snapshot)
-	}
-}
-
 func BenchmarkMarkdownPreviewFrame(b *testing.B) {
 	for _, example := range []struct {
 		name, text string
@@ -315,6 +312,7 @@ func BenchmarkMarkdownPreviewFrame(b *testing.B) {
 		{"open", strings.Repeat(markdownExample, 5), true},
 		{"large-table", "|a|b|\n|-|-|\n" + strings.Repeat("|x|y|\n", 800), true},
 		{"large-paragraph", strings.Repeat("A large Markdown document.\n", 10000), true},
+		{"full-history", fullMarkdownHistory(), true},
 	} {
 		b.Run(example.name, func(b *testing.B) {
 			a := markdownApp(example.text)
@@ -326,6 +324,42 @@ func BenchmarkMarkdownPreviewFrame(b *testing.B) {
 				tester.Frame()
 			}
 		})
+	}
+}
+
+func fullMarkdownHistory() string {
+	return "# 完整记录\n\n" + strings.Repeat("- 完整保留每一条开发记录，支持 **格式预览**、`代码`、中文和 emoji 😀；文末仍可继续阅读，不省略后续段落。\n", 1200) +
+		"\n## 完整预览终点\n\n这段内容位于原有字节、行数和节点限制之后。\n"
+}
+
+func TestMarkdownPreviewCompleteDocumentEnd(t *testing.T) {
+	source := fullMarkdownHistory()
+	for _, width := range []int{760, 1120} {
+		a := markdownApp(source)
+		tester := ui.NewTester(a.view, width, 600)
+		a.state.SetScrollY(math.MaxFloat64)
+		tester.Frame()
+		tester.Advance(time.Second)
+		pane, _ := tester.Find(locales.MarkdownPreviewArea())
+		tail, found := tester.Find("完整预览终点")
+		if !found || tail.Y < pane.Y || tail.Y+tail.H > pane.Y+pane.H ||
+			a.preview.source != source || math.Abs(float64(a.preview.scroll.Y-a.preview.scroll.MaxY)) > 0.5 {
+			t.Fatalf("the full document's end is not visible: width=%d tail=%+v pane=%+v", width, tail, pane)
+		}
+		if directory := os.Getenv("TEXTVIEWER_MARKDOWN_PREVIEW_DIR"); directory != "" {
+			if err := os.MkdirAll(directory, 0755); err != nil {
+				t.Fatal(err)
+			}
+			file, err := os.Create(filepath.Join(directory, fmt.Sprintf("complete-document-end-%d.png", width)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = png.Encode(file, tester.Image())
+			file.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 }
 

@@ -674,16 +674,6 @@ func (msgs Messages) MarkdownPreviewArea() string {
 	return Catalog.Format(msgs.locale, "markdownPreviewArea", nil)
 }
 
-// MarkdownPreviewTruncated says "预览已截断，完整内容仍可在左侧编辑。"
-// in the language the app shows.
-func MarkdownPreviewTruncated() string { return In(i18n.Locale()).MarkdownPreviewTruncated() }
-
-// MarkdownPreviewTruncated says "预览已截断，完整内容仍可在左侧编辑。"
-// in the language of msgs.
-func (msgs Messages) MarkdownPreviewTruncated() string {
-	return Catalog.Format(msgs.locale, "markdownPreviewTruncated", nil)
-}
-
 // AutoDetect says "自动识别"
 // in the language the app shows.
 func AutoDetect() string { return In(i18n.Locale()).AutoDetect() }

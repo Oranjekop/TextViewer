@@ -4,36 +4,28 @@ import (
 	"fmt"
 	"path/filepath"
 	"time"
-	"unicode/utf8"
 
 	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/markdown"
-	"github.com/egoist/mygo/ui/markdown/parser"
 )
 
-const (
-	markdownPreviewBytes = 64 << 10
-	markdownPreviewLines = 1000
-	markdownPreviewNodes = 1500
-	markdownPreviewDelay = 250 * time.Millisecond
-)
+const markdownPreviewDelay = 250 * time.Millisecond
 
 type markdownPreview struct {
-	open      bool
-	split     float32
-	source    string
-	truncated bool
-	buffer    *editor.Buffer
-	version   uint64
-	seen      uint64
-	due       time.Time
-	options   *markdown.Options
-	theme     markdown.Theme
-	path      string
-	scroll    ui.ScrollState
-	follow    markdownScrollSync
+	open    bool
+	split   float32
+	source  string
+	buffer  *editor.Buffer
+	version uint64
+	seen    uint64
+	due     time.Time
+	options *markdown.Options
+	theme   markdown.Theme
+	path    string
+	scroll  ui.ScrollState
+	follow  markdownScrollSync
 }
 
 func (a *App) isMarkdown() bool {
@@ -55,7 +47,6 @@ func (a *App) toggleMarkdownPreview() {
 func (p *markdownPreview) release() {
 	p.source, p.buffer, p.options = "", nil, nil
 	p.due = time.Time{}
-	p.truncated = false
 	p.follow = markdownScrollSync{}
 }
 
@@ -108,10 +99,6 @@ func (a *App) markdownView(c *ui.Context) {
 		content.Children(func() {
 			body := markdown.View(c.Key("content"), p.source, p.options).FillWidth()
 			p.follow.end(c, len(p.source), body.Bounds())
-			if p.truncated {
-				ui.Text(c, locales.MarkdownPreviewTruncated()).FillWidth().
-					FontSize(12).TextColor(c.Theme().TextMuted).Margin(16, 0, 0, 0)
-			}
 		})
 	})
 }
@@ -120,7 +107,7 @@ func (p *markdownPreview) update(c *ui.Context, buffer *editor.Buffer) {
 	version := buffer.Version()
 	if p.buffer != buffer {
 		p.buffer, p.seen, p.version = buffer, version, version
-		p.source, p.truncated = markdownPreviewText(buffer.Snapshot())
+		p.source = buffer.Snapshot().String()
 		p.follow.invalidate()
 		p.due = time.Time{}
 		return
@@ -135,40 +122,7 @@ func (p *markdownPreview) update(c *ui.Context, buffer *editor.Buffer) {
 		c.After(remaining)
 		return
 	}
-	p.source, p.truncated = markdownPreviewText(buffer.Snapshot())
+	p.source = buffer.Snapshot().String()
 	p.follow.invalidate()
 	p.version, p.due = version, time.Time{}
-}
-
-func markdownPreviewText(snapshot editor.Snapshot) (string, bool) {
-	end := min(snapshot.Len(), markdownPreviewBytes)
-	if snapshot.LineCount() > markdownPreviewLines {
-		end = min(end, snapshot.LineStart(markdownPreviewLines))
-	}
-	source := snapshot.Slice(0, end)
-	for len(source) > 0 {
-		r, size := utf8.DecodeLastRuneInString(source)
-		if r != utf8.RuneError || size != 1 {
-			break
-		}
-		source = source[:len(source)-1]
-	}
-	// Bound rendered structure too: a small table can have many cells.
-	doc := parser.Parse(source)
-	budget := markdownPreviewNodes
-	for index := 1; index < doc.Len(); index++ {
-		block := doc.Block(index)
-		if budget == 0 {
-			source = source[:block.Start]
-			break
-		}
-		budget--
-		inlines := doc.Inlines(index)
-		if len(inlines) > budget {
-			source = source[:max(block.Start, min(inlines[budget].Start, len(source)))]
-			break
-		}
-		budget -= len(inlines)
-	}
-	return source, len(source) < snapshot.Len()
 }
