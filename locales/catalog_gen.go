@@ -904,6 +904,16 @@ func (msgs Messages) CheckUpdates() string {
 	return Catalog.Format(msgs.locale, "checkUpdates", nil)
 }
 
+// SourceRepository says "开源仓库"
+// in the language the app shows.
+func SourceRepository() string { return In(i18n.Locale()).SourceRepository() }
+
+// SourceRepository says "开源仓库"
+// in the language of msgs.
+func (msgs Messages) SourceRepository() string {
+	return Catalog.Format(msgs.locale, "sourceRepository", nil)
+}
+
 // CheckingUpdates says "正在检查更新…"
 // in the language the app shows.
 func CheckingUpdates() string { return In(i18n.Locale()).CheckingUpdates() }

@@ -43,7 +43,7 @@ func TestToolbarAndStatusFitBothLocales(t *testing.T) {
 }
 
 func TestToolbarIconsAreValidSVGs(t *testing.T) {
-	if len(toolbarIcons) != 18 {
+	if len(toolbarIcons) != 19 {
 		t.Fatalf("got %d icons", len(toolbarIcons))
 	}
 	for name, icon := range toolbarIcons {

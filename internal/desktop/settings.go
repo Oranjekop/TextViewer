@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Oranjekop/TextViewer/internal/fileassoc"
+	"github.com/Oranjekop/TextViewer/internal/releaseinfo"
 	"github.com/Oranjekop/TextViewer/internal/shellmenu"
 	"github.com/Oranjekop/TextViewer/locales"
 	"github.com/egoist/mygo"
@@ -120,6 +121,12 @@ func (a *App) settingsWindow(c *ui.Context) {
 		}
 		ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
 			ui.Text(c, "TextViewer v"+a.version).TextColor(c.Theme().TextMuted)
+			const sourceURL = "https://github.com/" + releaseinfo.Repository
+			if iconButton(c, "external-link", locales.SourceRepository(), sourceURL, false).Clicked() {
+				if err := mygo.Shell.OpenExternal(sourceURL); err != nil {
+					a.settingsError = err.Error
+				}
+			}
 			if a.updateChecking {
 				ui.Spinner(c).Size(14, 14).Label(locales.CheckingUpdatesLabel())
 			}

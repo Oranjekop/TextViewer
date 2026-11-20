@@ -10,6 +10,28 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+func TestSettingsSourceRepositoryFitsMinimumWindow(t *testing.T) {
+	for _, tag := range []string{"zh-Hans", "en"} {
+		t.Setenv("MYGO_LOCALE", tag)
+		a := testApp()
+		a.integration = &fakeIntegration{}
+		a.version = "0.0.30"
+		a.chooseSettings()
+		tester := ui.NewTester(a.view, 760, 420)
+		tester.SetLocale(tag)
+		for _, scale := range []float32{1, 1.5, 2} {
+			tester.SetScale(scale)
+			messages := locales.In(tag)
+			link, ok := tester.Find(messages.SourceRepository())
+			update, foundUpdate := tester.Find(messages.CheckUpdates())
+			if !ok || !foundUpdate || link.W <= 0 || link.H <= 0 ||
+				link.X < 0 || link.Y < 0 || link.Y+link.H > 420 || link.X+link.W > update.X {
+				t.Fatalf("%s at scale %g: repository icon and update button do not fit: %+v / %+v", tag, scale, link, update)
+			}
+		}
+	}
+}
+
 func TestSettingsReopenKeepsSavedIntegrationChoices(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		t.Run(map[bool]string{false: "disabled", true: "enabled"}[enabled], func(t *testing.T) {
