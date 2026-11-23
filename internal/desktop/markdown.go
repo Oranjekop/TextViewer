@@ -51,10 +51,6 @@ func (p *markdownPreview) release() {
 }
 
 func (a *App) documentView(c *ui.Context) {
-	if !a.preview.follow.editorInput && a.preview.follow.previewMoved(&a.preview.scroll) {
-		a.wheel.active = false
-	}
-	a.wheel.frame(c, a.state)
 	if !a.isMarkdown() || !a.preview.open {
 		a.preview.release()
 		a.editorView(c)
@@ -73,7 +69,7 @@ func (a *App) documentView(c *ui.Context) {
 func (a *App) editorView(c *ui.Context) {
 	in := editor.View(c.Key(fmt.Sprintf("document-%d", a.id)), a.state).Fill().Bind(&a.editor)
 	if in.PressedOutside() {
-		a.wheel.active = false
+		a.editorPointerPressed = false
 	}
 	if a.pendingFocus {
 		in.Focus()

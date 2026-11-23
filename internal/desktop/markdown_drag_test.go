@@ -46,7 +46,7 @@ func TestMarkdownPreviewUsesAvailableHeight(t *testing.T) {
 	}
 }
 
-func TestMarkdownPreviewScrollbarTakesOverEditorAnimation(t *testing.T) {
+func TestMarkdownPreviewScrollbarTakesOverAfterEditorWheel(t *testing.T) {
 	a := markdownApp(markdownScrollExample())
 	tester := ui.NewTester(a.view, 1120, 700)
 	a.state.ScrollTo(80)
@@ -54,21 +54,12 @@ func TestMarkdownPreviewScrollbarTakesOverEditorAnimation(t *testing.T) {
 	left, _ := tester.Find(locales.EditorArea())
 	tester.Wheel(left.X+90, left.Y+60, 0, 240)
 	tester.Advance(40 * time.Millisecond)
-	if !a.wheel.active {
-		t.Fatal("fixture did not start an editor animation")
-	}
 	pane, start, length := previewScrollbar(t, tester, a)
 	x, y := pane.X+pane.W-5, start+length/2
 	tester.Move(x, y)
 	tester.Press(x, y)
-	if a.wheel.active {
-		t.Error("pressing the preview scrollbar did not stop the editor animation")
-	}
 	tester.Move(x, y+40)
 	tester.Advance(40 * time.Millisecond)
-	if a.wheel.active {
-		t.Error("editor animation continued while dragging the preview scrollbar")
-	}
 	tester.Move(x, pane.Y+pane.H-2)
 	tester.Release(x, pane.Y+pane.H-2)
 	tester.Advance(time.Second)

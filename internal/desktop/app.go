@@ -97,7 +97,7 @@ func (a *App) resetEditor() {
 	a.characters.release()
 	a.characters = characterCounter{}
 	a.clearSearchResult()
-	a.wheel = editorWheel{}
+	a.editorPointerPressed = false
 	a.language = languageAuto
 	a.applyLanguage()
 	replaceMods, replaceKey := findReplaceShortcut()

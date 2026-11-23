@@ -16,18 +16,18 @@ import (
 )
 
 type documentTab struct {
-	id           uint64
-	untitled     int
-	doc          *document.Document
-	state        *editor.State
-	wheel        editorWheel
-	language     string
-	column       columnCache
-	characters   characterCounter
-	searchStatus locales.Message
-	searchFailed bool
-	searchResult searchResult
-	preview      markdownPreview
+	id                   uint64
+	untitled             int
+	doc                  *document.Document
+	state                *editor.State
+	editorPointerPressed bool
+	language             string
+	column               columnCache
+	characters           characterCounter
+	searchStatus         locales.Message
+	searchFailed         bool
+	searchResult         searchResult
+	preview              markdownPreview
 }
 
 func (tab *documentTab) name() string {
@@ -49,7 +49,7 @@ func (tab *documentTab) tooltip() string {
 
 func (a *App) addDocument(doc *document.Document) {
 	if a.documentTab != nil {
-		a.wheel = editorWheel{}
+		a.editorPointerPressed = false
 		a.preview.release()
 	}
 	a.nextTabID++
@@ -84,7 +84,7 @@ func (a *App) activateTab(tab *documentTab) {
 		return
 	}
 	a.preview.release()
-	a.wheel = editorWheel{}
+	a.editorPointerPressed = false
 	a.documentTab = tab
 	a.tabIndex = slices.Index(a.tabs, tab)
 	a.status = nil

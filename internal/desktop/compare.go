@@ -104,7 +104,7 @@ func (a *App) startComparison() {
 	a.compareDialog = false
 	a.compareLeft, a.compareRight = nil, nil
 	a.preview.release()
-	a.wheel = editorWheel{}
+	a.editorPointerPressed = false
 	ctx, id := a.startJob(locales.ComparingText)
 	a.background(func() {
 		result, err := prepareComparison(ctx, leftSnapshot, rightSnapshot)
